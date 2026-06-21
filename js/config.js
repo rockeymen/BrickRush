@@ -25,12 +25,12 @@ const CONFIG = {
         slowFactor: 0.5,        // 减速弹命中后，砖块移动速度变为 50%
         rewardHpBase: 4,
         rewardHpPerWave: 1.6,
-        rewardWithMegaChance: 0.22,
-        advancedChance: 0.16,
-        advancedChancePerWave: 0.006,
-        advancedChanceMax: 0.26,
-        advancedHpBase: 5,
-        advancedHpPerWave: 2,
+        rewardWithMegaChance: 0.5,
+        advancedChance: 0.24,
+        advancedChancePerWave: 0.008,
+        advancedChanceMax: 0.36,
+        advancedHpBase: 12,
+        advancedHpPerWave: 5,
         splitDurationFrames: 600,
         splitMaxDepth: 2,
         spawnIntervalBase: 168, // 密度减半（生成间隔翻倍）

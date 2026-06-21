@@ -376,12 +376,26 @@ class Game {
     shouldSpawnMegaRewardBrick() {
         return Math.random() < CONFIG.brick.rewardWithMegaChance;
     }
+    hasSpecialBrick() {
+        return this.bricks.some(br => br.kind === 'advanced' || br.kind === 'reward');
+    }
     getBrickExp(hp, mega = false) {
         const base = mega ? 5 : 1;
         const scale = mega ? 1.35 : 0.75;
         return Math.max(mega ? 8 : 2, Math.round(base + Math.sqrt(Math.max(1, hp)) * scale));
     }
+    getAdvancedBrickHp() {
+        const b = CONFIG.brick;
+        const fieldHigh = this.bricks.reduce((best, br) => {
+            if (br.kind === 'advanced' || br.kind === 'reward') return best;
+            return Math.max(best, br.maxHp || br.hp || 0);
+        }, 0);
+        const waveTarget = b.advancedHpBase + this.wave * b.advancedHpPerWave;
+        const fieldTarget = fieldHigh > 0 ? fieldHigh * 0.72 : 0;
+        return Math.max(12, Math.min(100, Math.round(Math.max(waveTarget, fieldTarget))));
+    }
     spawnSmallSpecialBrick(kind) {
+        if (this.hasSpecialBrick()) return false;
         const b = CONFIG.brick;
         const cw = this.cellW, hw = cw / 2, hh = cw / 2;
         const yTop = CONFIG.topWallY + hh;
@@ -393,7 +407,9 @@ class Game {
         if (!free.length) return false;
         const x = free[Math.floor(Math.random() * free.length)];
         const split = kind === 'reward';
-        const hp = Math.max(3, Math.round((split ? b.rewardHpBase : b.advancedHpBase) + this.wave * (split ? b.rewardHpPerWave : b.advancedHpPerWave)));
+        const hp = split
+            ? Math.max(3, Math.round(b.rewardHpBase + this.wave * b.rewardHpPerWave))
+            : this.getAdvancedBrickHp();
         this.bricks.push({
             uid: ++this.uid, x, y: yTop, hw, hh,
             hp, maxHp: hp, slowed: 0, exp: 0, speed: b.speed, kind

@@ -310,7 +310,7 @@ class Renderer3D {
         const reward = br.kind === 'reward';
         const advanced = br.kind === 'advanced';
         if (advanced) {
-            const radius = Math.min(bw, bd) * 0.5;
+            const radius = Math.min(bw, bd) * 0.4;
             const baseH = this.ws(8);
             const domeMat = new THREE.MeshStandardMaterial({
                 color: new THREE.Color('#ff8a22'),
