@@ -119,6 +119,7 @@ class Game {
         set('instructionCopy', this.text('instructionsCopy'));
         set('startBtn', this.text('start'));
         set('instructionLanguageBtn', this.text('language'));
+        set('instructionInfoBtn', this.text('projectInfo'));
         set('menuTitle', this.text('menu'));
         set('restartBtn', this.text('restart'));
         set('languageBtn', this.text('language'));
@@ -205,36 +206,40 @@ class Game {
     closeMenu() { document.getElementById('menu-modal').style.display = 'none'; this.state = this.previousState || 'PLAYING'; }
     projectCreditsHtml() {
         const tracks = (typeof MUSIC_TRACKS !== 'undefined' ? MUSIC_TRACKS : []);
-        const names = tracks.map(t => t.nameEn || t.name).filter(Boolean);
-        const list = names.map(n => `<li>"${n}" Kevin MacLeod (incompetech.com)</li>`).join('');
+        const current = tracks.find(t => t.id === this.audio.musicTrack) || tracks[0] || null;
+        const currentName = current ? (current.nameEn || current.name) : null;
+        const currentLine = currentName ? `<li>"${currentName}" Kevin MacLeod (incompetech.com)</li>` : `<li>${this.lang === 'zh' ? '当前未使用背景音乐' : 'No background music is currently used.'}</li>`;
         if (this.lang === 'zh') {
             return `
-                <h3>背景音乐</h3>
-                <ul>${list}</ul>
+                <h3>当前背景音乐</h3>
+                <ul>${currentLine}</ul>
                 <h3>分裂时间音乐</h3>
                 <ul><li>"Pixel Peeker Polka - faster" Kevin MacLeod (incompetech.com)</li></ul>
                 <div class="credits-license">以上音乐均采用 Creative Commons: By Attribution 4.0 License 授权。<br>https://creativecommons.org/licenses/by/4.0/</div>
             `;
         }
         return `
-            <h3>Background Music</h3>
-            <ul>${list}</ul>
+            <h3>Current Background Music</h3>
+            <ul>${currentLine}</ul>
             <h3>Split Time Music</h3>
             <ul><li>"Pixel Peeker Polka - faster" Kevin MacLeod (incompetech.com)</li></ul>
             <div class="credits-license">All music above is licensed under Creative Commons: By Attribution 4.0 License.<br>https://creativecommons.org/licenses/by/4.0/</div>
         `;
     }
-    openProjectInfo() {
+    openProjectInfo(source = 'menu') {
+        this.projectInfoReturn = source;
         this.audio.play('ui');
         const copy = document.getElementById('projectInfoCopy');
         if (copy) copy.innerHTML = this.projectCreditsHtml();
         document.getElementById('menu-modal').style.display = 'none';
+        document.getElementById('instruction-modal').style.display = 'none';
         document.getElementById('project-info-modal').style.display = 'flex';
     }
     closeProjectInfo() {
         this.audio.play('ui');
         document.getElementById('project-info-modal').style.display = 'none';
-        document.getElementById('menu-modal').style.display = 'flex';
+        if (this.projectInfoReturn === 'instruction') document.getElementById('instruction-modal').style.display = 'flex';
+        else document.getElementById('menu-modal').style.display = 'flex';
     }
     showRestartConfirm() { document.getElementById('menu-modal').style.display = 'none'; document.getElementById('restart-confirm-modal').style.display = 'flex'; }
     cancelRestart() { document.getElementById('restart-confirm-modal').style.display = 'none'; document.getElementById('menu-modal').style.display = 'flex'; }

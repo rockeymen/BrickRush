@@ -30,6 +30,8 @@ class AudioManager {
         this.feverEl.loop = true;
         this.feverEl.preload = 'auto';
         this.splitMusicWasPlaying = false;
+        this.musicFadeId = null;
+        this.feverFadeId = null;
         this.lastPlayed = {};
     }
 
@@ -79,13 +81,40 @@ class AudioManager {
 
     outputGain() { return this.volume * 2.2; }
     musicLevel() { return Math.min(1, this.volume * 0.9); }
+    feverLevel() { return Math.min(1, this.volume * 1.05); }
+
+    cancelFade(kind) {
+        const key = kind + 'FadeId';
+        if (this[key]) {
+            cancelAnimationFrame(this[key]);
+            this[key] = null;
+        }
+    }
+
+    fadeElement(audio, to, duration = 900, kind = 'music', done = null) {
+        if (!audio) return;
+        this.cancelFade(kind);
+        const from = audio.volume;
+        const start = performance.now();
+        const tick = now => {
+            const t = Math.min(1, (now - start) / duration);
+            const eased = t * t * (3 - 2 * t);
+            audio.volume = from + (to - from) * eased;
+            if (t < 1) this[kind + 'FadeId'] = requestAnimationFrame(tick);
+            else {
+                this[kind + 'FadeId'] = null;
+                if (done) done();
+            }
+        };
+        this[kind + 'FadeId'] = requestAnimationFrame(tick);
+    }
 
     setVolume(value) {
         this.ensure();
         this.volume = Math.max(0, Math.min(1, Number(value) / 100));
         if (this.master && this.ctx) this.master.gain.setTargetAtTime(this.outputGain(), this.ctx.currentTime, 0.02);
         this.musicEl.volume = this.musicEnabled ? this.musicLevel() : 0;
-        if (this.feverEl) this.feverEl.volume = this.musicEnabled ? Math.min(1, this.volume * 1.05) : 0;
+        if (this.feverEl) this.feverEl.volume = this.musicEnabled ? this.feverLevel() : 0;
         this.saveSettings();
         return this.volume;
     }
@@ -103,7 +132,7 @@ class AudioManager {
         this.ensure();
         this.musicEnabled = !this.musicEnabled;
         this.musicEl.volume = this.musicEnabled ? this.musicLevel() : 0;
-        if (this.feverEl) this.feverEl.volume = this.musicEnabled ? Math.min(1, this.volume * 1.05) : 0;
+        if (this.feverEl) this.feverEl.volume = this.musicEnabled ? this.feverLevel() : 0;
         if (this.musicEnabled) this.startMusic();
         else this.stopMusic();
         this.saveSettings();
@@ -137,18 +166,34 @@ class AudioManager {
         this.resume();
         if (!this.musicEnabled) return;
         this.stopSplitFever(false);
+        this.cancelFade('music');
+        this.cancelFade('fever');
         this.splitMusicWasPlaying = !this.musicEl.paused;
         this.musicEl.pause();
-        this.feverEl.volume = Math.min(1, this.volume * 1.05);
+        this.feverEl.volume = this.feverLevel();
         this.feverEl.currentTime = 0;
         this.feverEl.play().catch(() => {});
     }
 
     stopSplitFever(resumeMusic = true) {
         if (!this.feverEl) return;
-        this.feverEl.pause();
-        this.feverEl.currentTime = 0;
-        if (resumeMusic && this.musicEnabled && this.splitMusicWasPlaying) this.startMusic();
+        this.cancelFade('fever');
+        this.cancelFade('music');
+        const shouldResumeMusic = resumeMusic && this.musicEnabled && this.splitMusicWasPlaying;
+        if (shouldResumeMusic) {
+            this.musicEl.volume = 0;
+            this.musicEl.play().catch(() => {});
+            this.fadeElement(this.musicEl, this.musicLevel(), 900, 'music');
+            this.fadeElement(this.feverEl, 0, 900, 'fever', () => {
+                this.feverEl.pause();
+                this.feverEl.currentTime = 0;
+                this.feverEl.volume = this.feverLevel();
+            });
+        } else {
+            this.feverEl.pause();
+            this.feverEl.currentTime = 0;
+            this.feverEl.volume = this.feverLevel();
+        }
         this.splitMusicWasPlaying = false;
     }
 
