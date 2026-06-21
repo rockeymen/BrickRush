@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:,">
+    <title>Brick Rush</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        html, body { width: 100%; height: 100%; }
+        body { background: #000; overflow: hidden; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; color: #fff; display: flex; justify-content: center; align-items: center; }
+
+        #game-wrapper {
+            position: relative;
+            width: min(100vw, calc(100vh * 9 / 16));
+            width: min(100vw, calc(100dvh * 9 / 16));
+            height: min(100vh, calc(100vw * 16 / 9));
+            height: min(100dvh, calc(100vw * 16 / 9));
+            background: #0a0620; box-shadow: 0 0 30px #222; overflow: hidden;
+        }
+        #gameCanvas { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        /* 顶部 HUD */
+        .hud-top { position: absolute; top: 14px; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 0 16px; text-shadow: 0 0 10px rgba(255,80,80,0.5); }
+        .hud-left .row { font-size: 13px; color: #d7dde3; }
+        .hud-left .row b { color: #ffd54a; font-size: 17px; }
+        .hud-right { text-align: right; }
+        .lvl-badge { font-size: 16px; font-weight: bold; color: #9af6ff; text-shadow: 0 0 10px #35e8ff; margin-bottom: 4px; }
+        .hp-row { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+        .hp-label { font-size: 11px; color: #cbd3e0; }
+        .hp-bar { width: 110px; height: 11px; background: #2a2030; border: 1px solid #554; border-radius: 6px; overflow: hidden; }
+        .hp-fill { height: 100%; width: 100%; background: #4ade5a; transition: width .2s, background .2s; }
+        .hp-text { font-size: 11px; color: #fff; min-width: 26px; text-align: left; }
+        .split-timer {
+            position: absolute; top: 48px; left: 50%; transform: translateX(-50%) scale(0.96);
+            min-width: 122px; height: 30px; padding: 0 12px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; gap: 7px;
+            background: rgba(18,10,38,0.82); border: 1px solid rgba(255,232,90,0.72);
+            box-shadow: 0 0 16px rgba(255,220,70,0.36), inset 0 0 12px rgba(255,80,220,0.18);
+            color: #fff8b8; font-size: 13px; font-weight: 800; opacity: 0;
+            pointer-events: none; z-index: 70; transition: opacity .16s, transform .16s;
+        }
+        .split-timer.active { opacity: 1; transform: translateX(-50%) scale(1); }
+        .split-timer.pop { animation: splitPop .42s ease-out; }
+        .split-timer b { color: #fff; min-width: 24px; text-align: right; font-size: 17px; text-shadow: 0 0 10px #ffdd4a; }
+        @keyframes splitPop {
+            0% { transform: translateX(-50%) scale(0.72); }
+            70% { transform: translateX(-50%) scale(1.08); }
+            100% { transform: translateX(-50%) scale(1); }
+        }
+
+        /* 底部经验条 */
+        .exp-bar-bg { position: absolute; bottom: 0; left: 0; width: 100%; height: 9px; background: #1a1430; z-index: 10; }
+        .exp-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00ffcc, #00ffff); box-shadow: 0 0 10px #00ffcc; transition: width .15s; }
+
+        /* 右下角菜单 */
+        .menu-btn { position: absolute; bottom: 20px; right: 12px; width: 40px; height: 40px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.4); background: rgba(20,12,32,0.82); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; pointer-events: auto; cursor: pointer; z-index: 80; box-shadow: 0 0 12px rgba(0,0,0,0.4); }
+        .menu-btn span { width: 17px; height: 2px; background: #fff; border-radius: 2px; }
+        .menu-btn:active { transform: scale(0.95); }
+
+        /* 模态 */
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,3,18,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 100; backdrop-filter: blur(5px); padding: 26px; text-align: center; }
+        .panel-title { font-size: 26px; color: #fff; margin-bottom: 14px; text-shadow: 0 0 16px #b56bff; }
+        .panel-copy { color: #cfd8e6; font-size: 14px; line-height: 1.65; max-width: 320px; margin-bottom: 20px; }
+        .panel-actions { display: flex; flex-direction: column; gap: 11px; width: min(270px, 90%); }
+        .panel-btn { height: 46px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.55); background: #f3f3f7; color: #16121f; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .panel-btn.dark { background: #1b1430; color: #fff; }
+        .panel-btn.warn { background: #5a1422; color: #fff; border-color: #ff5573; }
+        .panel-btn:active { transform: scale(0.97); }
+        .volume-control { width: min(270px, 90%); padding: 8px 0 2px; text-align: left; }
+        .volume-label { display: flex; justify-content: space-between; align-items: center; color: #dde3ee; font-size: 13px; margin-bottom: 8px; }
+        .volume-control input { width: 100%; accent-color: #b56bff; cursor: pointer; pointer-events: auto; }
+
+        /* 升级三选一 */
+        #upgrade-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,3,18,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 120; backdrop-filter: blur(5px); }
+        .upgrade-title { font-size: 24px; color: #fff; margin-bottom: 22px; text-shadow: 0 0 16px #00ffcc; }
+        .card-list { display: flex; flex-direction: row; gap: 10px; width: 96%; justify-content: center; align-items: stretch; }
+        .card { flex: 1; max-width: 130px; background: linear-gradient(160deg, rgba(60,30,96,0.9), rgba(18,10,38,0.95)); border: 1px solid rgba(150,110,230,0.5); border-radius: 12px; padding: 12px 8px 14px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: transform .1s, border-color .15s, box-shadow .15s; }
+        .card:active { transform: scale(0.95); }
+        .card:hover { border-color: #00ffcc; box-shadow: 0 0 16px rgba(0,255,204,0.3); }
+        .card-icon { width: 66px; height: 66px; }
+        .card-name { font-size: 14px; font-weight: bold; color: #fff; text-align: center; }
+        .card-desc { font-size: 11px; color: #c3cad6; text-align: center; line-height: 1.35; }
+
+        #gameover-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,3,18,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; pointer-events: auto; }
+        .go-title { font-size: 38px; color: #ff3b5c; font-weight: bold; margin-bottom: 16px; text-shadow: 0 0 22px #f0285a; }
+        .go-btn { padding: 14px 48px; background: #fff; color: #000; font-size: 17px; font-weight: bold; border-radius: 50px; cursor: pointer; margin-top: 28px; }
+    </style>
+</head>
+<body>
+    <div id="game-wrapper">
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="exp-bar-bg"><div class="exp-fill" id="exp-fill"></div></div>
+
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="hud-left">
+                    <div class="row"><span id="label-wave">波数</span> <b id="wave-val">1</b></div>
+                    <div class="row"><span id="label-kills">击杀</span> <b id="kills-val">0</b></div>
+                </div>
+                <div class="hud-right">
+                    <div class="lvl-badge" id="level-val">Lv.1</div>
+                    <div class="hp-row">
+                        <span class="hp-label" id="label-hp">基地</span>
+                        <div class="hp-bar"><div class="hp-fill" id="hp-fill"></div></div>
+                        <span class="hp-text" id="hp-text">100</span>
+                    </div>
+                </div>
+            </div>
+            <div class="split-timer" id="splitTimer"><span id="splitTimerLabel">分裂时间</span><b id="splitTimerVal">10</b></div>
+            <button class="menu-btn" id="menuBtn" onclick="game.openMenu()" aria-label="菜单"><span></span><span></span><span></span></button>
+        </div>
+
+        <!-- 开始说明 -->
+        <div id="instruction-modal" class="overlay">
+            <div class="panel-title" id="instructionTitle"></div>
+            <div class="panel-copy" id="instructionCopy"></div>
+            <div class="panel-actions">
+                <button class="panel-btn" id="startBtn" onclick="game.startGame()"></button>
+                <button class="panel-btn dark" id="instructionLanguageBtn" onclick="game.toggleLanguage()"></button>
+            </div>
+        </div>
+
+        <!-- 菜单 -->
+        <div id="menu-modal" class="overlay">
+            <div class="panel-title" id="menuTitle"></div>
+            <div class="panel-actions">
+                <button class="panel-btn dark" id="languageBtn" onclick="game.toggleLanguage()"></button>
+                <button class="panel-btn dark" id="sfxBtn" onclick="game.toggleSfx()"></button>
+                <button class="panel-btn dark" id="musicBtn" onclick="game.toggleMusic()"></button>
+                <div class="volume-control">
+                    <div class="volume-label"><span id="volumeLabel"></span><span id="volumeValue"></span></div>
+                    <input id="volumeSlider" type="range" min="0" max="100" value="40" oninput="game.setVolume(this.value)">
+                </div>
+                <button class="panel-btn warn" id="restartBtn" onclick="game.showRestartConfirm()"></button>
+                <button class="panel-btn" id="resumeBtn" onclick="game.closeMenu()"></button>
+            </div>
+        </div>
+
+        <!-- 重开确认 -->
+        <div id="restart-confirm-modal" class="overlay">
+            <div class="panel-title" id="restartTitle"></div>
+            <div class="panel-copy" id="restartCopy"></div>
+            <div class="panel-actions">
+                <button class="panel-btn warn" id="confirmRestartBtn" onclick="game.confirmRestart()"></button>
+                <button class="panel-btn" id="cancelRestartBtn" onclick="game.cancelRestart()"></button>
+            </div>
+        </div>
+
+        <!-- 升级三选一 -->
+        <div id="upgrade-modal">
+            <div class="upgrade-title" id="upgradeTitle">选择强化</div>
+            <div class="card-list" id="cardList"></div>
+        </div>
+
+        <!-- 结束 -->
+        <div id="gameover-screen">
+            <div class="go-title" id="gameoverTitle">防线告破</div>
+            <div id="final-score" style="color:#dde3ee; font-size:17px;"></div>
+            <div class="go-btn" id="goRestartBtn" onclick="game.confirmRestart()">重新开始</div>
+        </div>
+    </div>
+
+    <script src="assets/vendor/three.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/music.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/render3d.js"></script>
+    <script src="js/game.js"></script>
+    <script>
+        const game = new Game();
+        window.game = game;
+    </script>
+</body>
+</html>

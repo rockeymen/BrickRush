@@ -1,0 +1,8 @@
+.DS_Store
+aball-itch.zip
+dist-itch/
+release-artifacts/
+aBall.html
+music-preview.html
+*.log
+截屏*.png
