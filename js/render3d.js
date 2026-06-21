@@ -294,23 +294,11 @@ class Renderer3D {
             roughness: reward ? 0.16 : 0.26, flatShading: true, envMapIntensity: reward ? 2.1 : 1.4
         }));
         mesh.position.y = bh / 2; mesh.castShadow = true; mesh.receiveShadow = true; root.add(mesh);
-        let ring = null, halo = null;
-        if (reward) {
-            ring = new THREE.Mesh(new THREE.TorusGeometry(Math.max(bw, bd) * 0.56, this.ws(1.8), 8, 28), new THREE.MeshStandardMaterial({
-                color: new THREE.Color('#ffe85a'), emissive: new THREE.Color('#ffe85a'), emissiveIntensity: 1.35,
-                metalness: 0.2, roughness: 0.18, flatShading: true, envMapIntensity: 1.8
-            }));
-            ring.rotation.x = Math.PI / 2; ring.position.y = bh + this.ws(4); root.add(ring);
-            halo = this._glowSprite('#ff4cff', Math.max(bw, bd) * 1.8, 0.58);
-            halo.position.y = bh + this.ws(12); root.add(halo);
-        }
         const label = this._makeTextSprite(String(Math.ceil(br.hp)), '#ffffff', this.ws(25));
         label.position.set(0, bh + this.ws(7), 0); root.add(label);
         this.scene.add(root);
         const disposables = [mesh.geometry, mesh.material, label.material];
-        if (ring) disposables.push(ring.geometry, ring.material);
-        if (halo) disposables.push(halo.material);
-        return { obj: root, mesh, label, ring, halo, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh, slowShown: false, disposables };
+        return { obj: root, mesh, label, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh, slowShown: false, disposables };
     }
     _updateBrick(rec, br) {
         rec.obj.position.set(this.wx(br.x), 0, this.wz(br.y));
@@ -329,9 +317,6 @@ class Renderer3D {
             const h = (this.game.frame * 0.012 + br.uid * 0.07) % 1;
             rec.mesh.material.color.setHSL(h, 0.92, slowed ? 0.78 : 0.62);
             rec.mesh.material.emissive.setHSL((h + 0.18) % 1, 0.9, 0.48);
-            rec.mesh.rotation.y += 0.025;
-            if (rec.ring) { rec.ring.rotation.z += 0.075; rec.ring.material.color.setHSL((h + 0.34) % 1, 1, 0.6); }
-            if (rec.halo) { rec.halo.material.color.setHSL((h + 0.58) % 1, 1, 0.62); rec.halo.material.opacity = 0.42 + Math.sin(this.game.frame * 0.1) * 0.14; }
         }
     }
     _syncBricks() {

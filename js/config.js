@@ -23,9 +23,9 @@ const CONFIG = {
     brick: {
         speed: 0.336,           // 普通砖统一下落速度（原 0.48 的 70%）
         slowFactor: 0.5,        // 减速弹命中后，砖块移动速度变为 50%
-        rewardChance: 0.08,
-        rewardChancePerWave: 0.006,
-        rewardChanceMax: 0.16,
+        rewardChance: 0.04,
+        rewardChancePerWave: 0.003,
+        rewardChanceMax: 0.08,
         rewardHpBase: 4,
         rewardHpPerWave: 1.6,
         splitDurationFrames: 600,

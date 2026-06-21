@@ -382,7 +382,7 @@ class Game {
             const hp = Math.max(3, Math.round(b.rewardHpBase + this.wave * b.rewardHpPerWave));
             this.bricks.push({
                 uid: ++this.uid, x, y: yTop, hw, hh,
-                hp, maxHp: hp, slowed: 0, exp: 0, speed: b.speed * 0.9, kind: 'reward'
+                hp, maxHp: hp, slowed: 0, exp: 0, speed: b.speed, kind: 'reward'
             });
             return;
         }
