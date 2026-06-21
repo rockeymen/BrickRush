@@ -22,7 +22,7 @@ const CONFIG = {
     // 砖块（大小=格子，按列对齐下落，带数字，不重叠）
     brick: {
         speed: 0.336,           // 普通砖统一下落速度（原 0.48 的 70%）
-        slowFactor: 0.5,        // 减速弹命中后，砖块移动速度变为 50%
+        slowFactor: 0.5,        // 预留：砖块被减速状态影响时的速度倍率
         rewardHpBase: 4,
         rewardHpPerWave: 1.6,
         rewardWithMegaChance: 0.5,
@@ -46,7 +46,6 @@ const CONFIG = {
     ballColors: {
         normal: '#ffd54a',
         pierce: '#b56bff',
-        freeze: '#5fd8ff',
         explode: '#ff7a2f',
         hblast: '#ff4d4d',
         vblast: '#ff4ecf',
@@ -90,7 +89,6 @@ const I18N = {
             speed: { name: '球速强化', desc: '所有弹球速度提升' },
             explode: { name: '爆炸弹球', desc: '+1 颗爆炸弹，命中产生范围爆炸' },
             pierce: { name: '穿刺弹球', desc: '+1 颗穿刺弹，穿透怪物不反弹' },
-            freeze: { name: '减速弹球', desc: '+1 颗减速弹，命中使砖块速度降低 50%' },
             hblast: { name: '横向爆破弹', desc: '+1 颗，命中引发横向冲击波' },
             vblast: { name: '纵向爆破弹', desc: '+1 颗，命中引发纵向冲击波' }
         }
@@ -125,7 +123,6 @@ const I18N = {
             speed: { name: 'Speed Up', desc: 'All balls move faster' },
             explode: { name: 'Explosive Ball', desc: '+1 ball that blasts an area on hit' },
             pierce: { name: 'Pierce Ball', desc: '+1 ball that pierces through' },
-            freeze: { name: 'Slow Ball', desc: '+1 ball that slows blocks by 50%' },
             hblast: { name: 'H-Blast Ball', desc: '+1 ball, horizontal shockwave' },
             vblast: { name: 'V-Blast Ball', desc: '+1 ball, vertical shockwave' }
         }

@@ -48,14 +48,6 @@ function drawUpgradeIcon(ctx, id) {
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.shadowColor = '#d8b0ff'; ctx.shadowBlur = 10;
         ctx.beginPath(); ctx.moveTo(cx - 38, cy + 16); ctx.lineTo(cx + 34, cy - 18); ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx + 40, cy - 22); ctx.lineTo(cx + 22, cy - 22); ctx.lineTo(cx + 30, cy - 6); ctx.closePath(); ctx.fill();
-    } else if (id === 'freeze') {
-        ball(cx, cy, 20, '#5fd8ff');
-        // 减速箭头
-        ctx.strokeStyle = '#eaffff'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowColor = '#bff3ff'; ctx.shadowBlur = 10;
-        for (let i = 0; i < 3; i++) {
-            const y = cy - 28 + i * 16;
-            ctx.beginPath(); ctx.moveTo(cx - 18, y); ctx.lineTo(cx, y + 14); ctx.lineTo(cx + 18, y); ctx.stroke();
-        }
     } else if (id === 'hblast') {
         ball(cx, cy, 18, '#ff4d4d');
         ctx.fillStyle = 'rgba(255,77,77,0.85)'; ctx.shadowColor = '#ff4d4d'; ctx.shadowBlur = 14;

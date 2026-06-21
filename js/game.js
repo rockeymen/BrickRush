@@ -75,6 +75,7 @@ class Game {
         this.splitTimer = 0;
         this.splitToastTimer = 0;
         this.introSpecialQueue = ['advanced', 'reward'];
+        if (this.audio && this.audio.stopSplitFever) this.audio.stopSplitFever(false);
 
         this.addBall('normal');
         this.addBall('normal'); // 初始 2 颗（排队同角度连发，每击 -1 血）
@@ -165,11 +166,20 @@ class Game {
         box.classList.toggle('pop', this.splitToastTimer > 0);
         const val = document.getElementById('splitTimerVal');
         if (val) val.innerText = Math.max(0, Math.ceil(this.splitTimer / 60));
+        const banner = document.getElementById('splitBanner');
+        if (banner) {
+            banner.innerText = this.text('splitToast');
+            banner.classList.toggle('active', this.splitToastTimer > 0);
+        }
+        const wash = document.getElementById('splitFeverWash');
+        if (wash) wash.classList.toggle('active', active);
+        if (this.wrapper) this.wrapper.classList.toggle('split-fever', active);
     }
     endSplitTime() {
         this.splitTimer = 0;
         this.balls = this.balls.filter(ball => !ball.splitClone);
         this.balls.forEach(ball => { ball.splitDepth = 0; ball.splitCd = 0; });
+        this.audio.stopSplitFever(true);
         this.arrangeBallQueue();
         this.updateSplitUi();
     }
@@ -293,9 +303,10 @@ class Game {
         this.splitTimer = bc.splitDurationFrames;
         this.splitToastTimer = 90;
         this.balls.forEach(ball => { ball.splitDepth = 0; ball.splitCd = 0; });
-        this.floatTexts.push({ x: this.W / 2, y: this.H * 0.34, str: this.text('splitToast'), c: '#ffe85a', s: 32, life: 70, maxLife: 70 });
+        this.floatTexts.push({ x: this.W / 2, y: this.H * 0.34, str: this.text('splitToast'), c: '#ffe85a', s: 44, life: 80, maxLife: 80 });
         this.fx.push({ kind: 'split', x: this.W / 2, y: this.redLineY - 90, r: 42, life: 22, maxLife: 22, alpha: 1, color: '#ffe85a' });
         this.audio.play('levelup');
+        this.audio.startSplitFever();
         this.updateSplitUi();
     }
 
@@ -353,7 +364,6 @@ class Game {
             case 'speed': this.speed = Math.min(24, this.speed + 1.4); break;
             case 'explode': this.addBall('explode'); break;
             case 'pierce': this.addBall('pierce'); break;
-            case 'freeze': this.addBall('freeze'); break;
             case 'hblast': this.addBall('hblast'); break;
             case 'vblast': this.addBall('vblast'); break;
         }
@@ -545,9 +555,7 @@ class Game {
         const interval = Math.max(bc.spawnIntervalMin, bc.spawnIntervalBase - this.wave * 5);
         if (--this.spawnTimer <= 0) {
             this.spawnBrick();
-            // 大型怪在场时，小怪密度大幅降低，让玩家专心打大怪
-            const hasMega = this.bricks.some(b => b.hw > this.cellW * 0.6);
-            this.spawnTimer = hasMega ? Math.round(interval * 4) : interval;
+            this.spawnTimer = interval;
         }
         // 间或出大型怪（2×2 超厚血），第 3 波后才出现
         if (--this.megaTimer <= 0) {
@@ -555,7 +563,7 @@ class Game {
             else this.megaTimer = 120; // 太早/太挤，稍后再试
         }
 
-        // 砖块下落（每块自己的速度，减速弹命中后半速）
+        // 砖块下落（每块自己的速度；保留 slowed 状态用于兼容）
         for (const br of this.bricks) {
             if (br.slowed > 0) br.slowed--;
             br.y += (br.speed != null ? br.speed : bc.speed) * (br.slowed > 0 ? bc.slowFactor : 1);
@@ -661,12 +669,8 @@ class Game {
         ball.hitCd = 2;
         this.splitBall(ball);
 
-        if (ball.type === 'freeze') {
-            best.slowed = 160;
-            this.fx.push({ kind: 'slow', x: best.x, y: best.y, r: best.hw * 1.6, life: 18, maxLife: 18, alpha: 1, color: '#7fe6ff' });
-            this.audio.play('slow');
-        } else if (ball.type === 'explode') {
-            const rad = 78;
+        if (ball.type === 'explode') {
+            const rad = 156;
             this.fx.push({ kind: 'splash', x: ball.x, y: ball.y, r: rad, life: 13, maxLife: 13, alpha: 1, color: '#ff7a2f' });
             for (const br of this.bricks) if (br !== best && Math.hypot(br.x - ball.x, br.y - ball.y) < rad) br.hp -= this.power * 0.55;
             this.audio.play('blast');

@@ -142,6 +142,7 @@ class Renderer3D {
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(fw, groundDepth),
             new THREE.MeshStandardMaterial({ color: 0x180f3a, emissive: 0x120830, emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.78 }));
         ground.rotation.x = -Math.PI / 2; ground.position.z = groundCZ; ground.receiveShadow = true; field.add(ground);
+        this.groundMat = ground.material;
 
         const gridMat = new THREE.LineBasicMaterial({ color: 0x2bd6ff, transparent: true, opacity: 0.32 });
         this.gridMat = gridMat;
@@ -156,6 +157,7 @@ class Renderer3D {
 
         const spawnBar = new THREE.Mesh(new THREE.BoxGeometry(fw, this.ws(5), this.ws(3)), this.glowMat('#36e6ff', 0.95));
         spawnBar.position.set(0, this.ws(2.5), this.wz(CONFIG.topWallY)); field.add(spawnBar);
+        this.spawnBar = spawnBar;
 
         const lineZ = this.wz(this.game.redLineY);
         const redStrip = new THREE.Mesh(new THREE.PlaneGeometry(fw, this.ws(46)),
@@ -163,8 +165,10 @@ class Renderer3D {
         redStrip.rotation.x = -Math.PI / 2; redStrip.position.set(0, 0.05, lineZ - this.ws(23)); field.add(redStrip);
         const redBar = new THREE.Mesh(new THREE.BoxGeometry(fw, this.ws(6), this.ws(4)), this.glowMat('#ff2a44', 0.9));
         redBar.position.set(0, this.ws(3), lineZ); field.add(redBar);
+        this.redBar = redBar;
 
         const wallMat = this.glowMat('#7a3bff', 0.7, { metalness: 0.4, roughness: 0.3 });
+        this.wallMat = wallMat;
         const wallH = this.ws(16);
         for (const sx of [-1, 1]) {
             const wall = new THREE.Mesh(new THREE.BoxGeometry(this.ws(3), wallH, groundDepth), wallMat);
@@ -218,8 +222,11 @@ class Renderer3D {
     _makeTextTexture(str, color) {
         const key = str + '|' + color;
         if (this.texCache[key]) return this.texCache[key];
-        const c = document.createElement('canvas'); c.width = 192; c.height = 96;
+        const c = document.createElement('canvas');
         const ctx = c.getContext('2d');
+        ctx.font = 'bold 62px Arial';
+        const textW = Math.ceil(ctx.measureText(str).width);
+        c.width = Math.max(192, textW + 76); c.height = 104;
         ctx.font = 'bold 62px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.lineWidth = 7;
         ctx.strokeStyle = 'rgba(0,0,0,0.78)';
@@ -231,8 +238,11 @@ class Renderer3D {
         this.texCache[key] = tex; return tex;
     }
     _makeTextSprite(str, color, scale) {
-        const mat = new THREE.SpriteMaterial({ map: this._makeTextTexture(str, color), transparent: true, depthTest: false, depthWrite: false });
-        const sp = new THREE.Sprite(mat); sp.scale.set(scale * 2, scale, 1); sp.renderOrder = 1000;
+        const tex = this._makeTextTexture(str, color);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+        const sp = new THREE.Sprite(mat);
+        const aspect = tex.image ? tex.image.width / tex.image.height : 2;
+        sp.scale.set(scale * aspect, scale, 1); sp.renderOrder = 1000;
         return sp;
     }
     _makeRewardTexture() {
@@ -405,8 +415,6 @@ class Renderer3D {
         let core;
         if (ball.type === 'pierce') {
             core = new THREE.Mesh(this.getGeo('b_pierce', () => new THREE.ConeGeometry(r * 0.9, r * 2.6, 4)), this.glowMat(color, 1.1, { metalness: 0.3 }));
-        } else if (ball.type === 'freeze') {
-            core = new THREE.Mesh(this.getGeo('b_freeze', () => new THREE.IcosahedronGeometry(r * 1.05, 0)), this.glowMat(color, 1.1, { metalness: 0.2, roughness: 0.25 }));
         } else {
             // normal / explode / hblast / vblast：统一球形，仅颜色不同
             core = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), this.glowMat(color, 1.1, { metalness: 0.2 }));
@@ -425,8 +433,6 @@ class Renderer3D {
         if (rec.type === 'pierce') {
             rec.core.rotation.set(-Math.PI / 2, 0, 0);
             rec.core.rotation.z = -Math.atan2(ball.vx, -ball.vy);
-        } else if (rec.type === 'freeze') {
-            rec.core.rotation.y += 0.12; rec.core.rotation.x += 0.06;
         }
     }
     _syncBalls() {
@@ -489,7 +495,22 @@ class Renderer3D {
     }
 
     render() {
-        if (this.gridMat) this.gridMat.color.setHSL((0.5 + 0.16 * Math.sin(this.game.frame * 0.006)) % 1, 0.9, 0.6);
+        const fever = this.game.splitTimer > 0;
+        const feverPulse = fever ? 0.5 + 0.5 * Math.sin(this.game.frame * 0.18) : 0;
+        if (this.gridMat) {
+            this.gridMat.color.setHSL(fever ? (0.12 + feverPulse * 0.08) : (0.5 + 0.16 * Math.sin(this.game.frame * 0.006)) % 1, fever ? 1 : 0.9, fever ? 0.64 + feverPulse * 0.18 : 0.6);
+            this.gridMat.opacity = fever ? 0.5 + feverPulse * 0.28 : 0.32;
+        }
+        if (this.groundMat) {
+            this.groundMat.emissive.set(fever ? '#4a1738' : '#120830');
+            this.groundMat.emissiveIntensity = fever ? 0.9 + feverPulse * 0.55 : 0.6;
+        }
+        if (this.wallMat) {
+            this.wallMat.emissive.set(fever ? '#ffd54a' : '#7a3bff');
+            this.wallMat.emissiveIntensity = fever ? 1.0 + feverPulse * 0.65 : 0.7;
+        }
+        if (this.spawnBar) this.spawnBar.material.emissiveIntensity = fever ? 1.25 + feverPulse * 0.8 : 0.95;
+        if (this.redBar) this.redBar.material.emissiveIntensity = fever ? 1.25 + feverPulse * 0.7 : 0.9;
         if (this._turret) { const a = this.game.aimAngle; this._turret.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a)); }
         this._syncBricks();
         this._syncBalls();
