@@ -26,8 +26,9 @@ class AudioManager {
         this.musicEl.loop = true;
         this.musicEl.preload = 'auto';
         this.musicSource = null;
-        this.feverGain = null;
-        this.feverNodes = [];
+        this.feverEl = new Audio('assets/audio/pixel-peeker-polka-faster.mp3');
+        this.feverEl.loop = true;
+        this.feverEl.preload = 'auto';
         this.splitMusicWasPlaying = false;
         this.lastPlayed = {};
     }
@@ -84,6 +85,7 @@ class AudioManager {
         this.volume = Math.max(0, Math.min(1, Number(value) / 100));
         if (this.master && this.ctx) this.master.gain.setTargetAtTime(this.outputGain(), this.ctx.currentTime, 0.02);
         this.musicEl.volume = this.musicEnabled ? this.musicLevel() : 0;
+        if (this.feverEl) this.feverEl.volume = this.musicEnabled ? Math.min(1, this.volume * 1.05) : 0;
         this.saveSettings();
         return this.volume;
     }
@@ -101,6 +103,7 @@ class AudioManager {
         this.ensure();
         this.musicEnabled = !this.musicEnabled;
         this.musicEl.volume = this.musicEnabled ? this.musicLevel() : 0;
+        if (this.feverEl) this.feverEl.volume = this.musicEnabled ? Math.min(1, this.volume * 1.05) : 0;
         if (this.musicEnabled) this.startMusic();
         else this.stopMusic();
         this.saveSettings();
@@ -132,77 +135,19 @@ class AudioManager {
 
     startSplitFever() {
         this.resume();
-        if (!this.ctx || !this.musicEnabled) return;
+        if (!this.musicEnabled) return;
         this.stopSplitFever(false);
         this.splitMusicWasPlaying = !this.musicEl.paused;
         this.musicEl.pause();
-
-        const now = this.ctx.currentTime;
-        const fever = this.ctx.createGain();
-        fever.gain.setValueAtTime(0.0001, now);
-        fever.gain.exponentialRampToValueAtTime(0.36, now + 0.12);
-        fever.connect(this.master);
-        this.feverGain = fever;
-
-        const addTone = (freq, type, volume, filterFreq, bendTo = null) => {
-            const osc = this.ctx.createOscillator();
-            const filter = this.ctx.createBiquadFilter();
-            const gain = this.ctx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, now);
-            if (bendTo) osc.frequency.exponentialRampToValueAtTime(bendTo, now + 10);
-            filter.type = 'lowpass';
-            filter.frequency.value = filterFreq;
-            gain.gain.value = volume;
-            osc.connect(filter); filter.connect(gain); gain.connect(fever);
-            osc.start(now);
-            this.feverNodes.push(osc, filter, gain);
-            return gain;
-        };
-
-        const bassGain = addTone(92, 'sawtooth', 0.075, 260, 128);
-        addTone(184, 'triangle', 0.032, 620, 256);
-        addTone(552, 'square', 0.018, 1600, 736);
-
-        const lfo = this.ctx.createOscillator();
-        const lfoGain = this.ctx.createGain();
-        lfo.type = 'square';
-        lfo.frequency.value = 8;
-        lfoGain.gain.value = 0.045;
-        lfo.connect(lfoGain); lfoGain.connect(bassGain.gain);
-        lfo.start(now);
-        this.feverNodes.push(lfo, lfoGain);
-
-        const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.28;
-        const noise = this.ctx.createBufferSource();
-        const high = this.ctx.createBiquadFilter();
-        const noiseGain = this.ctx.createGain();
-        noise.buffer = buffer; noise.loop = true;
-        high.type = 'highpass'; high.frequency.value = 1800;
-        noiseGain.gain.value = 0.025;
-        noise.connect(high); high.connect(noiseGain); noiseGain.connect(fever);
-        noise.start(now);
-        this.feverNodes.push(noise, high, noiseGain);
+        this.feverEl.volume = Math.min(1, this.volume * 1.05);
+        this.feverEl.currentTime = 0;
+        this.feverEl.play().catch(() => {});
     }
 
     stopSplitFever(resumeMusic = true) {
-        if (!this.ctx || !this.feverGain) return;
-        const now = this.ctx.currentTime;
-        this.feverGain.gain.cancelScheduledValues(now);
-        this.feverGain.gain.setTargetAtTime(0.0001, now, 0.05);
-        const fever = this.feverGain;
-        const nodes = this.feverNodes.slice();
-        window.setTimeout(() => {
-            nodes.forEach(n => {
-                try { if (n.stop) n.stop(); } catch (e) {}
-                try { if (n.disconnect) n.disconnect(); } catch (e) {}
-            });
-            try { fever.disconnect(); } catch (e) {}
-        }, 160);
-        this.feverNodes = [];
-        this.feverGain = null;
+        if (!this.feverEl) return;
+        this.feverEl.pause();
+        this.feverEl.currentTime = 0;
         if (resumeMusic && this.musicEnabled && this.splitMusicWasPlaying) this.startMusic();
         this.splitMusicWasPlaying = false;
     }

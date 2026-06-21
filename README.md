@@ -19,3 +19,9 @@ http://localhost:8010/
 - `index.html` - game page and UI
 - `js/` - gameplay, rendering, audio, config, icons
 - `assets/` - Three.js runtime and audio assets
+
+## Music Credits
+
+- "Pixel Peeker Polka - faster" Kevin MacLeod (incompetech.com)
+  Licensed under Creative Commons: By Attribution 4.0 License
+  https://creativecommons.org/licenses/by/4.0/

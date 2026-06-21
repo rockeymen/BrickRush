@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:,">
+    <title>Brick Rush - Split Time Music Picks</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #0b0718;
+            color: #f6f2ff;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        }
+        main {
+            width: min(980px, calc(100% - 28px));
+            margin: 0 auto;
+            padding: 28px 0 42px;
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            letter-spacing: 0;
+        }
+        .intro {
+            margin: 0 0 22px;
+            color: #cfc8e8;
+            line-height: 1.65;
+            font-size: 14px;
+        }
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .btn {
+            border: 1px solid rgba(255,255,255,0.32);
+            background: #1f1735;
+            color: #fff;
+            padding: 9px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .btn:hover { border-color: #ffd54a; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
+        }
+        .track {
+            border: 1px solid rgba(255,255,255,0.14);
+            background: linear-gradient(160deg, rgba(42,28,68,0.96), rgba(15,10,29,0.96));
+            border-radius: 8px;
+            padding: 14px;
+            box-shadow: inset 0 0 0 1px rgba(255,213,74,0.05);
+        }
+        .track.recommended {
+            border-color: rgba(255,213,74,0.65);
+            box-shadow: 0 0 18px rgba(255,100,30,0.16), inset 0 0 0 1px rgba(255,213,74,0.12);
+        }
+        .rank {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            margin-right: 8px;
+            border-radius: 50%;
+            background: #ff7a2f;
+            color: #160813;
+            font-weight: 900;
+        }
+        h2 {
+            display: flex;
+            align-items: center;
+            margin: 0 0 8px;
+            font-size: 18px;
+        }
+        .tag {
+            display: inline-block;
+            margin: 0 6px 8px 0;
+            padding: 4px 7px;
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 999px;
+            color: #ffe8a3;
+            font-size: 12px;
+        }
+        .note {
+            min-height: 44px;
+            margin: 0 0 12px;
+            color: #d8d0ee;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        audio {
+            display: block;
+            width: 100%;
+            height: 34px;
+            margin: 8px 0 10px;
+        }
+        .links {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+        a { color: #9af6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .license {
+            margin-top: 22px;
+            padding: 12px 14px;
+            border: 1px solid rgba(154,246,255,0.22);
+            border-radius: 8px;
+            color: #c8eefa;
+            background: rgba(20,26,42,0.72);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Split Time Music Picks - Happy Burst</h1>
+        <p class="intro">
+            这版换成更欢乐、更像街机奖励/派对暴走的方向。每首都来自 Incompetech / Kevin MacLeod，
+            可免费用 Creative Commons 授权，但需要署名。点播放器试听；“10 秒试听”会从头播放并自动停下。
+        </p>
+
+        <div class="toolbar">
+            <button class="btn" id="stopAllBtn">停止全部</button>
+            <a class="btn" href="./index.html">回到游戏</a>
+        </div>
+
+        <section class="grid" id="trackGrid"></section>
+
+        <p class="license">
+            授权提醒：Incompetech 的 Creative Commons 选项免费，要求在作品中标注音乐 credit。
+            最终接入游戏时我会把选中的曲名、作者和授权说明写进 README 或 itch 页面描述里。
+        </p>
+    </main>
+
+    <script>
+        const tracks = [
+            {
+                title: "Beachfront Celebration",
+                src: "assets/audio/beachfront.mp3",
+                tags: ["Sunny", "Party", "Upbeat"],
+                note: "最像奖励时刻：阳光、热闹、快乐，分裂时间会像进入派对加成。"
+            },
+            {
+                title: "Brightly Fancy",
+                src: "assets/audio/brightly.mp3",
+                tags: ["Bright", "Fancy", "Cheerful"],
+                note: "明亮、轻快、很有奖励弹窗感，适合不想太吵但要开心的版本。"
+            },
+            {
+                title: "Monkeys Spinning Monkeys",
+                src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Monkeys%20Spinning%20Monkeys.mp3",
+                tags: ["Silly", "Fast", "Comedy"],
+                note: "最搞怪最欢乐，分裂时间会变成很有梗的快乐暴走。可能有点太喜剧。"
+            },
+            {
+                title: "Fluffing a Duck",
+                src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Fluffing%20a%20Duck.mp3",
+                tags: ["Bouncy", "Cute", "Funny"],
+                note: "弹性很强，轻松可爱，适合把分裂时间做成“开心乱弹”的感觉。"
+            },
+            {
+                title: "Off to Osaka",
+                src: "assets/audio/osaka.mp3",
+                tags: ["Playful", "Lively", "Light"],
+                note: "轻巧灵动，游戏感比较好，适合 10 秒奖励段，不会压过音效。"
+            },
+            {
+                title: "Pixel Peeker Polka - faster",
+                src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Pixel%20Peeker%20Polka%20-%20faster.mp3",
+                tags: ["Polka", "Fast", "Arcade"],
+                note: "速度快、很像小游戏加速奖励，欢乐程度高，适合短促爆发。"
+            },
+            {
+                title: "Easy Lemon",
+                src: "assets/audio/easylemon.mp3",
+                tags: ["Breezy", "Happy", "Light"],
+                note: "轻松明快，比较舒服；如果你想要快乐但不吵，这首可以。"
+            },
+            {
+                title: "Cattails",
+                src: "assets/audio/cattails.mp3",
+                tags: ["Bright", "Happy", "Cute"],
+                note: "轻快愉快，适合更休闲的奖励段，和游戏主体风格衔接自然。"
+            },
+            {
+                title: "Sardana",
+                src: "assets/audio/sardana.mp3",
+                tags: ["Bright", "Melodic", "Uplifting"],
+                note: "旋律感更强，听起来开心但不失控，适合偏明亮的分裂时间。"
+            },
+            {
+                title: "Hyperfun",
+                src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Hyperfun.mp3",
+                tags: ["Fast", "Fun", "Arcade"],
+                note: "名字就很对题，整体更快乐、更急促，适合短时间狂热状态。"
+            }
+        ];
+
+        const enc = title => encodeURIComponent(title).replace(/'/g, "%27");
+        const mp3Url = track => track.src;
+        const pageUrl = track => `https://incompetech.com/music/royalty-free/index.html?Search=${enc(track.title)}`;
+
+        const grid = document.getElementById("trackGrid");
+        tracks.forEach((track, i) => {
+            const card = document.createElement("article");
+            card.className = "track" + (i < 3 ? " recommended" : "");
+            card.innerHTML = `
+                <h2><span class="rank">${i + 1}</span>${track.title}</h2>
+                <div>${track.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div>
+                <p class="note">${track.note}</p>
+                <audio controls preload="none" src="${mp3Url(track)}"></audio>
+                <div class="links">
+                    <button class="btn preview-btn" type="button">10 秒试听</button>
+                    <a href="${pageUrl(track)}" target="_blank" rel="noreferrer">官方页面</a>
+                    <a href="${mp3Url(track)}" target="_blank" rel="noreferrer">MP3</a>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+
+        const stopAll = () => {
+            document.querySelectorAll("audio").forEach(audio => {
+                audio.pause();
+                audio.currentTime = 0;
+            });
+        };
+        document.getElementById("stopAllBtn").addEventListener("click", stopAll);
+        document.querySelectorAll("audio").forEach(audio => {
+            audio.addEventListener("play", () => {
+                document.querySelectorAll("audio").forEach(other => {
+                    if (other !== audio) other.pause();
+                });
+            });
+        });
+        document.querySelectorAll(".preview-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const audio = btn.closest(".track").querySelector("audio");
+                stopAll();
+                audio.currentTime = 0;
+                audio.play();
+                window.setTimeout(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }, 10000);
+            });
+        });
+    </script>
+</body>
+</html>
