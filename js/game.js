@@ -3,7 +3,7 @@
 //
 //  玩法：弹球自动连发、墙壁/砖块反弹、回收后朝当前瞄准方向重发。砖块从顶部
 //  「单独」下落（非整排）、速度统一、带血量数字。砖块越过红线扣基地血。
-//  击碎砖块得经验，升级时三选一强化（含特殊弹球）。
+//  击碎砖块得经验，普通升级强化基础属性；高级弹球由特殊砖块发放。
 //
 //  弹球物理鲁棒性（杜绝“卡死/消失”）：每帧速度归一化、强制最小垂直分量、
 //  回收用 dist≤捕获半径 或 ≤单步位移 判定、墙壁钳位。砖块为矩形 → 圆-AABB 碰撞。
@@ -55,6 +55,8 @@ class Game {
         this.expNeed = this.getExpNeed(1);
         this.baseHp = CONFIG.baseHp;
         this.pendingLevelUps = 0;
+        this.pendingAdvancedUpgrades = 0;
+        this.upgradeMode = 'normal';
 
         this.power = CONFIG.base.power;
         this.speed = CONFIG.base.speed;
@@ -77,7 +79,7 @@ class Game {
         this.addBall('normal'); // 初始 2 颗（排队同角度连发，每击 -1 血）
         this.balls.forEach(ball => { ball.launchGap = this.initialBallLaunchGap; });
 
-        // 开局放 4 个 2 血的弱怪：消灭 2 个即触发第一次升级（新手引导）
+        // 开局放 4 个 2 血的弱怪：消灭 3 个左右触发第一次升级（新手引导）
         const cw = this.cellW, hw = cw / 2, hh = cw / 2;
         [0, 2, 3, 5].forEach(i => {
             this.bricks.push({ uid: ++this.uid, x: cw * (i + 0.5), y: CONFIG.topWallY + hh, hw, hh, hp: 2, maxHp: 2, slowed: 0, exp: 2, speed: CONFIG.brick.speed });
@@ -86,9 +88,9 @@ class Game {
     }
 
     getExpNeed(level) {
-        // 前 3 级升得快（快速攒球/起步），之后明显变慢
-        if (level <= 3) return [0, 3, 5, 8][level];
-        return Math.floor(3 + level * 2 + level * level * 0.9);
+        // 普通升级只提供基础成长，节奏放慢，特殊弹球改由高级砖块发放
+        if (level <= 3) return [0, 5, 9, 14][level];
+        return Math.floor(8 + level * 4 + level * level * 1.25);
     }
 
     // ---------------- 语言 / HUD ----------------
@@ -304,9 +306,10 @@ class Game {
         this.pendingLevelUps++;
         this.audio.play('levelup');
     }
-    openUpgrade() {
+    openUpgrade(mode = 'normal') {
         this.state = 'UPGRADE';
-        const pool = CONFIG.upgradePool.slice();
+        this.upgradeMode = mode;
+        const pool = (mode === 'advanced' ? CONFIG.advancedUpgradePool : CONFIG.upgradePool).slice();
         this.upgradeChoices = [];
         for (let i = 0; i < 3 && pool.length; i++) this.upgradeChoices.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
         this.renderUpgradeCards();
@@ -316,6 +319,8 @@ class Game {
         const list = document.getElementById('cardList');
         if (!list) return;
         list.innerHTML = '';
+        const title = document.getElementById('upgradeTitle');
+        if (title) title.innerText = this.text(this.upgradeMode === 'advanced' ? 'advancedUpgradeTitle' : 'upgradeTitle');
         (this.upgradeChoices || []).forEach(id => {
             const t = this.upgradeText(id);
             const card = document.createElement('div');
@@ -333,9 +338,11 @@ class Game {
     chooseUpgrade(id) {
         this.applyUpgrade(id);
         this.audio.play('upgrade');
-        this.pendingLevelUps = Math.max(0, this.pendingLevelUps - 1);
-        if (this.pendingLevelUps > 0) this.openUpgrade();
-        else { document.getElementById('upgrade-modal').style.display = 'none'; this.state = 'PLAYING'; }
+        if (this.upgradeMode === 'advanced') this.pendingAdvancedUpgrades = Math.max(0, this.pendingAdvancedUpgrades - 1);
+        else this.pendingLevelUps = Math.max(0, this.pendingLevelUps - 1);
+        if (this.pendingAdvancedUpgrades > 0) this.openUpgrade('advanced');
+        else if (this.pendingLevelUps > 0) this.openUpgrade('normal');
+        else { document.getElementById('upgrade-modal').style.display = 'none'; this.state = 'PLAYING'; this.upgradeMode = 'normal'; }
         this.updateHud();
     }
     applyUpgrade(id) {
@@ -360,10 +367,34 @@ class Game {
         }
         return true;
     }
-    shouldSpawnRewardBrick() {
+    shouldSpawnAdvancedBrick() {
         const b = CONFIG.brick;
-        const chance = Math.min(b.rewardChanceMax, b.rewardChance + Math.max(0, this.wave - 1) * b.rewardChancePerWave);
+        const chance = Math.min(b.advancedChanceMax, b.advancedChance + Math.max(0, this.wave - 1) * b.advancedChancePerWave);
         return this.wave >= 2 && Math.random() < chance;
+    }
+    getBrickExp(hp, mega = false) {
+        const base = mega ? 5 : 1;
+        const scale = mega ? 1.35 : 0.75;
+        return Math.max(mega ? 8 : 2, Math.round(base + Math.sqrt(Math.max(1, hp)) * scale));
+    }
+    spawnSmallSpecialBrick(kind) {
+        const b = CONFIG.brick;
+        const cw = this.cellW, hw = cw / 2, hh = cw / 2;
+        const yTop = CONFIG.topWallY + hh;
+        const free = [];
+        for (let i = 0; i < CONFIG.cols; i++) {
+            const cx = cw * (i + 0.5);
+            if (this.canPlace(cx, hw, hh)) free.push(cx);
+        }
+        if (!free.length) return false;
+        const x = free[Math.floor(Math.random() * free.length)];
+        const split = kind === 'reward';
+        const hp = Math.max(3, Math.round((split ? b.rewardHpBase : b.advancedHpBase) + this.wave * (split ? b.rewardHpPerWave : b.advancedHpPerWave)));
+        this.bricks.push({
+            uid: ++this.uid, x, y: yTop, hw, hh,
+            hp, maxHp: hp, slowed: 0, exp: 0, speed: b.speed, kind
+        });
+        return true;
     }
 
     spawnBrick() {
@@ -378,14 +409,7 @@ class Game {
         }
         if (!free.length) return;
         const x = free[Math.floor(Math.random() * free.length)];
-        if (this.shouldSpawnRewardBrick()) {
-            const hp = Math.max(3, Math.round(b.rewardHpBase + this.wave * b.rewardHpPerWave));
-            this.bricks.push({
-                uid: ++this.uid, x, y: yTop, hw, hh,
-                hp, maxHp: hp, slowed: 0, exp: 0, speed: b.speed, kind: 'reward'
-            });
-            return;
-        }
+        if (this.shouldSpawnAdvancedBrick()) { this.spawnSmallSpecialBrick('advanced'); return; }
         // 血量按波数提升；小概率出老怪（血量特别大、移动缓慢）
         const low = b.hpLow + (this.wave - 1) * b.hpLowPerWave;
         let hp = Math.round(low + Math.random() * (b.hpSpread + this.wave * b.hpSpreadPerWave));
@@ -396,7 +420,7 @@ class Game {
         hp = Math.max(3, hp);
         this.bricks.push({
             uid: ++this.uid, x, y: yTop, hw, hh,
-            hp, maxHp: hp, slowed: 0, exp: 2 + Math.floor(hp / 4), speed
+            hp, maxHp: hp, slowed: 0, exp: this.getBrickExp(hp), speed
         });
     }
 
@@ -417,8 +441,9 @@ class Game {
                 const hp = Math.max(40, Math.round(base * b.megaMul));
                 this.bricks.push({
                     uid: ++this.uid, x, y: yTop, hw, hh,
-                    hp, maxHp: hp, slowed: 0, exp: 2 + Math.floor(hp / 4), speed: b.speed * b.megaSpeedMul
+                    hp, maxHp: hp, slowed: 0, exp: this.getBrickExp(hp, true), speed: b.speed * b.megaSpeedMul
                 });
+                this.spawnSmallSpecialBrick('reward');
                 return true;
             }
         }
@@ -467,7 +492,8 @@ class Game {
 
     // ---------------- 主循环 ----------------
     loop() {
-        if (this.state === 'PLAYING' && this.pendingLevelUps > 0) this.openUpgrade();
+        if (this.state === 'PLAYING' && this.pendingAdvancedUpgrades > 0) this.openUpgrade('advanced');
+        else if (this.state === 'PLAYING' && this.pendingLevelUps > 0) this.openUpgrade('normal');
         if (this.state === 'PLAYING') this.update();
         if (this.renderer) this.renderer.render();
         requestAnimationFrame(() => this.loop());
@@ -556,6 +582,10 @@ class Game {
             if (br.hp <= 0) {
                 this.kills++;
                 if (br.kind === 'reward') this.triggerSplitTime();
+                if (br.kind === 'advanced') {
+                    this.pendingAdvancedUpgrades++;
+                    this.floatTexts.push({ x: br.x, y: br.y, str: this.text('advancedUpgradeTitle'), c: '#bff3ff', s: 22, life: 50, maxLife: 50 });
+                }
                 this.fx.push({ kind: 'pop', x: br.x, y: br.y, r: br.hw * 1.8, life: 14, maxLife: 14, alpha: 1, color: '#ffd54a' });
                 if (br.exp > 0) {
                     this.exp += br.exp;

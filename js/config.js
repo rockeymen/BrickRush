@@ -23,11 +23,13 @@ const CONFIG = {
     brick: {
         speed: 0.336,           // 普通砖统一下落速度（原 0.48 的 70%）
         slowFactor: 0.5,        // 减速弹命中后，砖块移动速度变为 50%
-        rewardChance: 0.04,
-        rewardChancePerWave: 0.003,
-        rewardChanceMax: 0.08,
         rewardHpBase: 4,
         rewardHpPerWave: 1.6,
+        advancedChance: 0.055,
+        advancedChancePerWave: 0.003,
+        advancedChanceMax: 0.11,
+        advancedHpBase: 5,
+        advancedHpPerWave: 2,
         splitDurationFrames: 600,
         splitMaxDepth: 2,
         spawnIntervalBase: 168, // 密度减半（生成间隔翻倍）
@@ -51,7 +53,8 @@ const CONFIG = {
     },
 
     // 升级池（id 与 I18N.upgrades 对应；icon 决定卡片缩略图画法）
-    upgradePool: ['addNormal', 'power', 'speed', 'explode', 'pierce', 'freeze', 'hblast', 'vblast'],
+    upgradePool: ['addNormal', 'power', 'speed'],
+    advancedUpgradePool: ['explode', 'pierce', 'hblast', 'vblast'],
     maxBalls: 40
 };
 
@@ -75,10 +78,11 @@ const I18N = {
         restartTitle: '重新开始?', restartCopy: '当前进度不会保留，确定重新开始吗?',
         confirmRestart: '确认重开', cancel: '取消',
         instructionsTitle: '操作说明',
-        instructionsCopy: '点击或拖动屏幕调整发射方向，弹球自动连发并反弹。击碎单独下落的砖块获得经验，升级时从三张卡片中三选一强化弹球。别让砖块越过红线！',
+        instructionsCopy: '点击或拖动屏幕调整发射方向，弹球自动连发并反弹。击碎砖块获得经验，普通升级强化基础属性；击碎特殊砖块可获得高级弹球或进入分裂时间。别让砖块越过红线！',
         start: '开始游戏',
         gameover: '防线告破', finalScore: '坚守到第 {wave} 波 · 击杀 {kills}',
         upgradeTitle: '选择强化',
+        advancedUpgradeTitle: '选择高级弹球',
         upgrades: {
             addNormal: { name: '增加弹球', desc: '+1 颗普通弹球' },
             power: { name: '攻击强化', desc: '所有弹球攻击力 +1' },
@@ -109,10 +113,11 @@ const I18N = {
         restartTitle: 'Restart?', restartCopy: 'Current progress will be lost. Restart now?',
         confirmRestart: 'Restart', cancel: 'Cancel',
         instructionsTitle: 'How to Play',
-        instructionsCopy: 'Tap or drag to aim. Balls auto-fire and bounce. Break the blocks falling one by one for EXP, and pick 1 of 3 upgrade cards when you level up. Don\'t let blocks cross the red line!',
+        instructionsCopy: 'Tap or drag to aim. Balls auto-fire and bounce. Break blocks for EXP and basic upgrades. Break special blocks to gain special balls or enter Split Time. Don\'t let blocks cross the red line!',
         start: 'Start',
         gameover: 'Line Breached', finalScore: 'Held to wave {wave} · {kills} kills',
         upgradeTitle: 'Choose an Upgrade',
+        advancedUpgradeTitle: 'Choose a Special Ball',
         upgrades: {
             addNormal: { name: 'Extra Ball', desc: '+1 normal ball' },
             power: { name: 'Power Up', desc: 'All balls +1 damage' },

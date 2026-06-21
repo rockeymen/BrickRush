@@ -258,6 +258,27 @@ class Renderer3D {
         const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
         this.rewardTex = tex; return tex;
     }
+    _makeAdvancedTexture() {
+        if (this.advancedTex) return this.advancedTex;
+        const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+        const ctx = c.getContext('2d');
+        const g = ctx.createLinearGradient(0, 0, 128, 128);
+        g.addColorStop(0.0, '#182452');
+        g.addColorStop(0.38, '#255eb8');
+        g.addColorStop(0.72, '#6a32a6');
+        g.addColorStop(1.0, '#1b1436');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+        ctx.globalAlpha = 0.42;
+        ctx.fillStyle = '#aef6ff';
+        for (let y = 14; y < 128; y += 28) {
+            ctx.fillRect(0, y, 128, 8);
+        }
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 128, 10);
+        const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+        this.advancedTex = tex; return tex;
+    }
 
     // ================= 砖块（带数字，单独下落） =================
     // 按当前血量分档：数值越高颜色越深、更危险；被打低后同步变浅
@@ -287,11 +308,17 @@ class Renderer3D {
         const root = new THREE.Group();
         const bw = this.ws(br.hw * 2) * 0.92, bd = this.ws(br.hh * 2) * 0.92, bh = this.ws(34);
         const reward = br.kind === 'reward';
-        const col = reward ? new THREE.Color('#ffffff') : this._brickColor(br);
+        const advanced = br.kind === 'advanced';
+        const col = reward || advanced ? new THREE.Color('#ffffff') : this._brickColor(br);
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({
-            color: col, map: reward ? this._makeRewardTexture() : null, emissive: reward ? new THREE.Color('#ff4cff') : col,
-            emissiveIntensity: reward ? 0.9 : 0.42, metalness: reward ? 0.76 : 0.58,
-            roughness: reward ? 0.16 : 0.26, flatShading: true, envMapIntensity: reward ? 2.1 : 1.4
+            color: col,
+            map: reward ? this._makeRewardTexture() : (advanced ? this._makeAdvancedTexture() : null),
+            emissive: reward ? new THREE.Color('#ff4cff') : (advanced ? new THREE.Color('#2bd6ff') : col),
+            emissiveIntensity: reward ? 0.9 : (advanced ? 0.52 : 0.42),
+            metalness: reward ? 0.76 : (advanced ? 0.68 : 0.58),
+            roughness: reward ? 0.16 : (advanced ? 0.24 : 0.26),
+            flatShading: true,
+            envMapIntensity: reward ? 2.1 : (advanced ? 1.65 : 1.4)
         }));
         mesh.position.y = bh / 2; mesh.castShadow = true; mesh.receiveShadow = true; root.add(mesh);
         const label = this._makeTextSprite(String(Math.ceil(br.hp)), '#ffffff', this.ws(25));
@@ -306,7 +333,7 @@ class Renderer3D {
         const slowed = br.slowed > 0;
         if (hp !== rec.hpShown || slowed !== rec.slowShown) {
             rec.hpShown = hp; rec.slowShown = slowed;
-            if (br.kind !== 'reward') {
+            if (br.kind !== 'reward' && br.kind !== 'advanced') {
                 const col = slowed ? new THREE.Color('#9fe8ff') : this._brickColor(br);
                 rec.mesh.material.color.copy(col); rec.mesh.material.emissive.copy(col);
             }
@@ -317,6 +344,9 @@ class Renderer3D {
             const h = (this.game.frame * 0.012 + br.uid * 0.07) % 1;
             rec.mesh.material.color.setHSL(h, 0.92, slowed ? 0.78 : 0.62);
             rec.mesh.material.emissive.setHSL((h + 0.18) % 1, 0.9, 0.48);
+        } else if (br.kind === 'advanced') {
+            rec.mesh.material.color.set(slowed ? '#9fe8ff' : '#ffffff');
+            rec.mesh.material.emissive.set(slowed ? '#9fe8ff' : '#2bd6ff');
         }
     }
     _syncBricks() {
