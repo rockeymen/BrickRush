@@ -309,6 +309,41 @@ class Renderer3D {
         const bw = this.ws(br.hw * 2) * 0.92, bd = this.ws(br.hh * 2) * 0.92, bh = this.ws(34);
         const reward = br.kind === 'reward';
         const advanced = br.kind === 'advanced';
+        if (advanced) {
+            const radius = Math.min(bw, bd) * 0.5;
+            const baseH = this.ws(8);
+            const domeMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color('#ff8a22'),
+                emissive: new THREE.Color('#ff6a00'),
+                emissiveIntensity: 1.05,
+                metalness: 0.35,
+                roughness: 0.2,
+                envMapIntensity: 1.8
+            });
+            const baseMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color('#4a2414'),
+                emissive: new THREE.Color('#ff5a00'),
+                emissiveIntensity: 0.26,
+                metalness: 0.72,
+                roughness: 0.32,
+                envMapIntensity: 1.25
+            });
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(radius, 36, 18, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+            dome.position.y = baseH;
+            dome.castShadow = true; dome.receiveShadow = true; root.add(dome);
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.03, radius * 1.03, baseH, 40), baseMat);
+            base.position.y = baseH * 0.5;
+            base.castShadow = true; base.receiveShadow = true; root.add(base);
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.03, this.ws(2.5), 10, 40), baseMat);
+            rim.rotation.x = Math.PI / 2;
+            rim.position.y = baseH + this.ws(1.2);
+            root.add(rim);
+            const label = this._makeTextSprite(String(Math.ceil(br.hp)), '#ffffff', this.ws(25));
+            label.position.set(0, baseH + radius + this.ws(10), 0); root.add(label);
+            this.scene.add(root);
+            const disposables = [dome.geometry, dome.material, base.geometry, base.material, rim.geometry, rim.material, label.material];
+            return { obj: root, mesh: dome, label, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh: baseH + radius, slowShown: false, disposables };
+        }
         const col = reward || advanced ? new THREE.Color('#ffffff') : this._brickColor(br);
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({
             color: col,
@@ -345,8 +380,10 @@ class Renderer3D {
             rec.mesh.material.color.setHSL(h, 0.92, slowed ? 0.78 : 0.62);
             rec.mesh.material.emissive.setHSL((h + 0.18) % 1, 0.9, 0.48);
         } else if (br.kind === 'advanced') {
-            rec.mesh.material.color.set(slowed ? '#9fe8ff' : '#ffffff');
-            rec.mesh.material.emissive.set(slowed ? '#9fe8ff' : '#2bd6ff');
+            const pulse = 0.95 + Math.sin(this.game.frame * 0.08 + br.uid) * 0.16;
+            rec.mesh.material.color.set(slowed ? '#ffc76b' : '#ff8a22');
+            rec.mesh.material.emissive.set(slowed ? '#ffb24a' : '#ff6a00');
+            rec.mesh.material.emissiveIntensity = slowed ? 0.78 : pulse;
         }
     }
     _syncBricks() {

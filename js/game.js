@@ -74,6 +74,7 @@ class Game {
         this.lastBallLaunchFrame = -Infinity;
         this.splitTimer = 0;
         this.splitToastTimer = 0;
+        this.introSpecialQueue = ['advanced', 'reward'];
 
         this.addBall('normal');
         this.addBall('normal'); // 初始 2 颗（排队同角度连发，每击 -1 血）
@@ -372,6 +373,9 @@ class Game {
         const chance = Math.min(b.advancedChanceMax, b.advancedChance + Math.max(0, this.wave - 1) * b.advancedChancePerWave);
         return this.wave >= 2 && Math.random() < chance;
     }
+    shouldSpawnMegaRewardBrick() {
+        return Math.random() < CONFIG.brick.rewardWithMegaChance;
+    }
     getBrickExp(hp, mega = false) {
         const base = mega ? 5 : 1;
         const scale = mega ? 1.35 : 0.75;
@@ -396,6 +400,13 @@ class Game {
         });
         return true;
     }
+    spawnIntroSpecialBrick() {
+        if (!this.introSpecialQueue || this.introSpecialQueue.length === 0) return false;
+        const kind = this.introSpecialQueue[0];
+        if (!this.spawnSmallSpecialBrick(kind)) return false;
+        this.introSpecialQueue.shift();
+        return true;
+    }
 
     spawnBrick() {
         const b = CONFIG.brick;
@@ -409,6 +420,7 @@ class Game {
         }
         if (!free.length) return;
         const x = free[Math.floor(Math.random() * free.length)];
+        if (this.spawnIntroSpecialBrick()) return;
         if (this.shouldSpawnAdvancedBrick()) { this.spawnSmallSpecialBrick('advanced'); return; }
         // 血量按波数提升；小概率出老怪（血量特别大、移动缓慢）
         const low = b.hpLow + (this.wave - 1) * b.hpLowPerWave;
@@ -443,7 +455,7 @@ class Game {
                     uid: ++this.uid, x, y: yTop, hw, hh,
                     hp, maxHp: hp, slowed: 0, exp: this.getBrickExp(hp, true), speed: b.speed * b.megaSpeedMul
                 });
-                this.spawnSmallSpecialBrick('reward');
+                if (this.shouldSpawnMegaRewardBrick()) this.spawnSmallSpecialBrick('reward');
                 return true;
             }
         }
