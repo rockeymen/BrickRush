@@ -22,6 +22,12 @@ http://localhost:8010/
 
 ## Music Credits
 
+- Background music tracks:
+  "Wallpaper", "Easy Lemon", "Local Forecast - Elevator", "Thinking Music",
+  "Carefree", "Brightly Fancy", "Pleasant Porridge", "Sardana",
+  "Off to Osaka", "Cattails", and "Beachfront Celebration"
+  by Kevin MacLeod (incompetech.com)
 - "Pixel Peeker Polka - faster" Kevin MacLeod (incompetech.com)
-  Licensed under Creative Commons: By Attribution 4.0 License
-  https://creativecommons.org/licenses/by/4.0/
+
+All music above is licensed under Creative Commons: By Attribution 4.0 License.
+https://creativecommons.org/licenses/by/4.0/

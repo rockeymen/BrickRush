@@ -97,6 +97,13 @@
         .volume-control { width: min(270px, 90%); padding: 8px 0 2px; text-align: left; }
         .volume-label { display: flex; justify-content: space-between; align-items: center; color: #dde3ee; font-size: 13px; margin-bottom: 8px; }
         .volume-control input { width: 100%; accent-color: #b56bff; cursor: pointer; pointer-events: auto; }
+        .text-link-btn { border: 0; background: transparent; color: #9af6ff; min-height: 30px; height: auto; padding: 4px 8px; font-size: 13px; font-weight: 700; text-decoration: underline; box-shadow: none; }
+        .text-link-btn:active { transform: none; color: #ffe85a; }
+        .credits-panel { width: min(370px, 94%); max-height: min(72vh, 580px); overflow: auto; text-align: left; color: #dbe2f2; font-size: 12px; line-height: 1.5; padding-right: 4px; }
+        .credits-panel h3 { color: #fff8b8; font-size: 14px; margin: 12px 0 6px; }
+        .credits-panel ul { margin: 0; padding-left: 18px; }
+        .credits-panel li { margin: 2px 0; }
+        .credits-license { margin-top: 10px; color: #9af6ff; font-size: 12px; }
 
         /* 升级三选一 */
         #upgrade-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(6,3,18,0.92); display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 120; backdrop-filter: blur(5px); }
@@ -164,6 +171,16 @@
                 </div>
                 <button class="panel-btn warn" id="restartBtn" onclick="game.showRestartConfirm()"></button>
                 <button class="panel-btn" id="resumeBtn" onclick="game.closeMenu()"></button>
+                <button class="panel-btn text-link-btn" id="projectInfoBtn" onclick="game.openProjectInfo()"></button>
+            </div>
+        </div>
+
+        <!-- 项目说明 -->
+        <div id="project-info-modal" class="overlay">
+            <div class="panel-title" id="projectInfoTitle"></div>
+            <div class="credits-panel" id="projectInfoCopy"></div>
+            <div class="panel-actions">
+                <button class="panel-btn" id="projectInfoCloseBtn" onclick="game.closeProjectInfo()"></button>
             </div>
         </div>
 

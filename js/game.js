@@ -126,6 +126,9 @@ class Game {
         set('musicBtn', this.text(this.audio.musicEnabled ? 'musicOn' : 'musicOff'));
         set('volumeLabel', this.text('volume'));
         set('resumeBtn', this.text('resume'));
+        set('projectInfoBtn', this.text('projectInfo'));
+        set('projectInfoTitle', this.text('projectInfoTitle'));
+        set('projectInfoCloseBtn', this.text('projectInfoClose'));
         set('restartTitle', this.text('restartTitle'));
         set('restartCopy', this.text('restartCopy'));
         set('confirmRestartBtn', this.text('confirmRestart'));
@@ -200,6 +203,39 @@ class Game {
         document.getElementById('menu-modal').style.display = 'flex';
     }
     closeMenu() { document.getElementById('menu-modal').style.display = 'none'; this.state = this.previousState || 'PLAYING'; }
+    projectCreditsHtml() {
+        const tracks = (typeof MUSIC_TRACKS !== 'undefined' ? MUSIC_TRACKS : []);
+        const names = tracks.map(t => t.nameEn || t.name).filter(Boolean);
+        const list = names.map(n => `<li>"${n}" Kevin MacLeod (incompetech.com)</li>`).join('');
+        if (this.lang === 'zh') {
+            return `
+                <h3>背景音乐</h3>
+                <ul>${list}</ul>
+                <h3>分裂时间音乐</h3>
+                <ul><li>"Pixel Peeker Polka - faster" Kevin MacLeod (incompetech.com)</li></ul>
+                <div class="credits-license">以上音乐均采用 Creative Commons: By Attribution 4.0 License 授权。<br>https://creativecommons.org/licenses/by/4.0/</div>
+            `;
+        }
+        return `
+            <h3>Background Music</h3>
+            <ul>${list}</ul>
+            <h3>Split Time Music</h3>
+            <ul><li>"Pixel Peeker Polka - faster" Kevin MacLeod (incompetech.com)</li></ul>
+            <div class="credits-license">All music above is licensed under Creative Commons: By Attribution 4.0 License.<br>https://creativecommons.org/licenses/by/4.0/</div>
+        `;
+    }
+    openProjectInfo() {
+        this.audio.play('ui');
+        const copy = document.getElementById('projectInfoCopy');
+        if (copy) copy.innerHTML = this.projectCreditsHtml();
+        document.getElementById('menu-modal').style.display = 'none';
+        document.getElementById('project-info-modal').style.display = 'flex';
+    }
+    closeProjectInfo() {
+        this.audio.play('ui');
+        document.getElementById('project-info-modal').style.display = 'none';
+        document.getElementById('menu-modal').style.display = 'flex';
+    }
     showRestartConfirm() { document.getElementById('menu-modal').style.display = 'none'; document.getElementById('restart-confirm-modal').style.display = 'flex'; }
     cancelRestart() { document.getElementById('restart-confirm-modal').style.display = 'none'; document.getElementById('menu-modal').style.display = 'flex'; }
     confirmRestart() { location.reload(); }
