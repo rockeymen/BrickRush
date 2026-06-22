@@ -290,6 +290,96 @@ class Renderer3D {
         this.advancedTex = tex; return tex;
     }
 
+    _makeCrackTexture(variant = 0, strokeScale = 1) {
+        if (!this.crackTex) this.crackTex = {};
+        const weight = Math.max(0.42, Math.min(1, strokeScale));
+        const key = `${variant % 4}|${weight.toFixed(2)}`;
+        if (this.crackTex[key]) return this.crackTex[key];
+        const c = document.createElement('canvas'); c.width = c.height = 128;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, 128, 128);
+        ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+        const paths = [
+            [[0, 72, 30, 62, 52, 76, 82, 42, 128, 54], [52, 76, 36, 108, 8, 126], [82, 42, 96, 10, 122, 0]],
+            [[10, 0, 42, 36, 34, 62, 70, 78, 118, 128], [34, 62, 0, 88], [70, 78, 104, 44, 128, 28]],
+            [[0, 34, 38, 46, 62, 28, 92, 70, 128, 64], [62, 28, 72, 0], [92, 70, 72, 110, 78, 128]],
+            [[0, 104, 28, 82, 58, 88, 76, 54, 128, 18], [58, 88, 38, 126], [76, 54, 44, 24, 40, 0], [92, 42, 128, 92]]
+        ];
+        const strokePaths = (list, width, color) => {
+            ctx.lineWidth = width;
+            ctx.strokeStyle = color;
+            for (const path of list) {
+                ctx.beginPath();
+                ctx.moveTo(path[0], path[1]);
+                for (let i = 2; i < path.length; i += 2) ctx.lineTo(path[i], path[i + 1]);
+                ctx.stroke();
+            }
+        };
+        const idx = variant % 4;
+        strokePaths(paths[idx], 8 * weight, 'rgba(30,34,48,0.82)');
+        strokePaths(paths[idx], 4 * weight, 'rgba(255,255,255,0.98)');
+        const branches = [
+            [[46, 64, 18, 50], [82, 54, 112, 84]],
+            [[44, 66, 72, 34], [82, 92, 54, 118]],
+            [[46, 42, 22, 76], [86, 62, 118, 36]],
+            [[42, 84, 16, 56], [76, 54, 104, 70]]
+        ];
+        strokePaths(branches[idx], 5 * weight, 'rgba(30,34,48,0.72)');
+        strokePaths(branches[idx], 2.5 * weight, 'rgba(255,255,255,0.96)');
+        const tex = new THREE.CanvasTexture(c); tex.needsUpdate = true;
+        this.crackTex[key] = tex; return tex;
+    }
+
+    _makeCrackSprite(scaleX, scaleZ = scaleX, variant = 0, strokeScale = 1) {
+        const mat = new THREE.MeshBasicMaterial({
+            map: this._makeCrackTexture(variant, strokeScale),
+            transparent: true,
+            opacity: 0.96,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        });
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+        plane.rotation.x = -Math.PI / 2;
+        plane.scale.set(scaleX, scaleZ, 1);
+        plane.visible = false;
+        return plane;
+    }
+
+    _makeFlameTexture() {
+        if (this.flameTex) return this.flameTex;
+        const c = document.createElement('canvas'); c.width = c.height = 96;
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, 96, 96);
+        ctx.shadowColor = '#ff5a24'; ctx.shadowBlur = 12;
+        const g = ctx.createLinearGradient(0, 12, 0, 88);
+        g.addColorStop(0, '#fff6a4'); g.addColorStop(0.42, '#ff9a24'); g.addColorStop(1, '#ff3c1f');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(48, 8);
+        ctx.bezierCurveTo(76, 34, 70, 72, 48, 88);
+        ctx.bezierCurveTo(18, 68, 28, 36, 48, 8);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,245,150,0.88)';
+        ctx.beginPath();
+        ctx.moveTo(51, 32);
+        ctx.bezierCurveTo(62, 48, 60, 70, 48, 80);
+        ctx.bezierCurveTo(34, 64, 40, 46, 51, 32);
+        ctx.fill();
+        const tex = new THREE.CanvasTexture(c); tex.needsUpdate = true;
+        this.flameTex = tex; return tex;
+    }
+
+    _makeFlameSprite(scale) {
+        const mat = new THREE.SpriteMaterial({ map: this._makeFlameTexture(), color: new THREE.Color('#ff8a24'), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+        const sp = new THREE.Sprite(mat);
+        sp.scale.set(scale * 0.72, scale, 1);
+        sp.visible = false;
+        return sp;
+    }
+
     // ================= 砖块（带数字，单独下落） =================
     // 按当前血量分档：数值越高颜色越深、更危险；被打低后同步变浅
     _brickColor(br) {
@@ -320,39 +410,86 @@ class Renderer3D {
         const reward = br.kind === 'reward';
         const advanced = br.kind === 'advanced';
         if (advanced) {
-            const radius = Math.min(bw, bd) * 0.4;
-            const baseH = this.ws(8);
-            const domeMat = new THREE.MeshStandardMaterial({
-                color: new THREE.Color('#ff8a22'),
+            const chestW = bw * 0.92;
+            const chestD = bd * 0.74;
+            const bodyH = this.ws(18);
+            const lidH = this.ws(13);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color('#8c3f16'),
+                emissive: new THREE.Color('#4a1706'),
+                emissiveIntensity: 0.35,
+                metalness: 0.32,
+                roughness: 0.38,
+                envMapIntensity: 1.45,
+                flatShading: true
+            });
+            const lidMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color('#b45618'),
                 emissive: new THREE.Color('#ff6a00'),
+                emissiveIntensity: 0.42,
+                metalness: 0.26,
+                roughness: 0.3,
+                envMapIntensity: 1.65,
+                flatShading: true
+            });
+            const trimMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color('#ffd05a'),
+                emissive: new THREE.Color('#ff8a00'),
+                emissiveIntensity: 0.72,
+                metalness: 0.82,
+                roughness: 0.18,
+                envMapIntensity: 2.0
+            });
+            const lockMat = new THREE.MeshStandardMaterial({
+                color: new THREE.Color('#fff0a0'),
+                emissive: new THREE.Color('#ffb000'),
                 emissiveIntensity: 1.05,
-                metalness: 0.35,
-                roughness: 0.2,
-                envMapIntensity: 1.8
+                metalness: 0.9,
+                roughness: 0.16,
+                envMapIntensity: 2.2
             });
-            const baseMat = new THREE.MeshStandardMaterial({
-                color: new THREE.Color('#4a2414'),
-                emissive: new THREE.Color('#ff5a00'),
-                emissiveIntensity: 0.26,
-                metalness: 0.72,
-                roughness: 0.32,
-                envMapIntensity: 1.25
+            const body = new THREE.Mesh(new THREE.BoxGeometry(chestW, bodyH, chestD), bodyMat);
+            body.position.y = bodyH * 0.5;
+            body.castShadow = true; body.receiveShadow = true; root.add(body);
+            const lid = new THREE.Mesh(new THREE.BoxGeometry(chestW * 1.03, lidH, chestD * 1.06), lidMat);
+            lid.position.y = bodyH + lidH * 0.5;
+            lid.castShadow = true; lid.receiveShadow = true; root.add(lid);
+            const seam = new THREE.Mesh(new THREE.BoxGeometry(chestW * 1.08, this.ws(2.5), chestD * 1.12), trimMat);
+            seam.position.y = bodyH + this.ws(0.6); root.add(seam);
+            const topStripe = new THREE.Mesh(new THREE.BoxGeometry(chestW * 0.74, this.ws(2.2), chestD * 1.14), trimMat);
+            topStripe.position.y = bodyH + lidH + this.ws(0.6); root.add(topStripe);
+            const frontRail = new THREE.Mesh(new THREE.BoxGeometry(chestW * 0.82, this.ws(4), this.ws(4)), trimMat);
+            frontRail.position.set(0, bodyH + this.ws(1.3), chestD * 0.6); root.add(frontRail);
+            const bands = [];
+            [-0.28, 0.28].forEach(xn => {
+                const band = new THREE.Mesh(new THREE.BoxGeometry(this.ws(5), lidH + this.ws(3), chestD * 1.16), trimMat);
+                band.position.set(chestW * xn, bodyH + lidH * 0.5, 0);
+                band.castShadow = true; root.add(band); bands.push(band);
             });
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(radius, 36, 18, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
-            dome.position.y = baseH;
-            dome.castShadow = true; dome.receiveShadow = true; root.add(dome);
-            const base = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.03, radius * 1.03, baseH, 40), baseMat);
-            base.position.y = baseH * 0.5;
-            base.castShadow = true; base.receiveShadow = true; root.add(base);
-            const rim = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.03, this.ws(2.5), 10, 40), baseMat);
-            rim.rotation.x = Math.PI / 2;
-            rim.position.y = baseH + this.ws(1.2);
-            root.add(rim);
+            const lock = new THREE.Mesh(new THREE.BoxGeometry(this.ws(17), this.ws(11), this.ws(5)), lockMat);
+            lock.position.set(0, bodyH + this.ws(2.2), chestD * 0.64);
+            lock.castShadow = true; root.add(lock);
+            const keyhole = new THREE.Mesh(new THREE.BoxGeometry(this.ws(4), this.ws(4), this.ws(5.5)), this.glowMat('#2b1630', 0.08, { metalness: 0.2, roughness: 0.5 }));
+            keyhole.position.set(0, bodyH + this.ws(1.2), chestD * 0.69); root.add(keyhole);
+            const glow = this._glowDisc('#ff9a22', Math.max(chestW, chestD) * 0.74, 0.34);
+            glow.position.y = 0.09; root.add(glow);
             const label = this._makeTextSprite(String(Math.ceil(br.hp)), '#ffffff', this.ws(25));
-            label.position.set(0, baseH + radius + this.ws(10), 0); root.add(label);
+            label.position.set(0, bodyH + lidH + this.ws(10), 0); root.add(label);
+            const crackVariant = br.crackVariant != null ? br.crackVariant : (br.uid % 4);
+            const crackStrokeScale = 1;
+            const crack = this._makeCrackSprite(chestW * 1.0, chestD * 1.0, crackVariant, crackStrokeScale);
+            crack.position.set(0, bodyH + lidH + this.ws(0.9), 0);
+            root.add(crack);
+            const flames = [-0.28, 0.02, 0.29].map((xn) => {
+                const fl = this._makeFlameSprite(this.ws(26));
+                fl.position.set(chestW * xn, bodyH + lidH + this.ws(8), this.ws(3));
+                fl.visible = false; root.add(fl); return fl;
+            });
             this.scene.add(root);
-            const disposables = [dome.geometry, dome.material, base.geometry, base.material, rim.geometry, rim.material, label.material];
-            return { obj: root, mesh: dome, label, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh: baseH + radius, slowShown: false, disposables };
+            const disposables = [body.geometry, body.material, lid.geometry, lid.material, seam.geometry, seam.material, topStripe.geometry, topStripe.material, frontRail.geometry, frontRail.material, lock.geometry, lock.material, keyhole.geometry, keyhole.material, glow.material, label.material, crack.geometry, crack.material];
+            flames.forEach(fl => disposables.push(fl.material));
+            bands.forEach(band => disposables.push(band.geometry, band.material));
+            return { obj: root, mesh: body, lid, lock, label, crack, crackVariant, crackStrokeScale, flames, flameSpread: chestW * 0.55, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh: bodyH + lidH, slowShown: false, burnShown: false, armorShown: false, disposables };
         }
         const col = reward || advanced ? new THREE.Color('#ffffff') : this._brickColor(br);
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), new THREE.MeshStandardMaterial({
@@ -368,19 +505,41 @@ class Renderer3D {
         mesh.position.y = bh / 2; mesh.castShadow = true; mesh.receiveShadow = true; root.add(mesh);
         const label = this._makeTextSprite(String(Math.ceil(br.hp)), '#ffffff', this.ws(25));
         label.position.set(0, bh + this.ws(7), 0); root.add(label);
+        const crackVariant = br.crackVariant != null ? br.crackVariant : (br.uid % 4);
+        const crackStrokeScale = Math.min(1, this.ws(this.game.cellW * 0.92) / Math.max(bw, bd));
+        const crack = this._makeCrackSprite(bw * 1.0, bd * 1.0, crackVariant, crackStrokeScale);
+        crack.position.set(0, bh + this.ws(0.9), 0);
+        root.add(crack);
+        const flames = [-0.3, 0, 0.3].map((xn) => {
+            const fl = this._makeFlameSprite(this.ws(24));
+            fl.position.set(bw * xn, bh + this.ws(8), this.ws(3));
+            fl.visible = false; root.add(fl); return fl;
+        });
         this.scene.add(root);
-        const disposables = [mesh.geometry, mesh.material, label.material];
-        return { obj: root, mesh, label, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh, slowShown: false, disposables };
+        const disposables = [mesh.geometry, mesh.material, label.material, crack.geometry, crack.material];
+        flames.forEach(fl => disposables.push(fl.material));
+        return { obj: root, mesh, label, crack, crackVariant, crackStrokeScale, flames, flameSpread: bw * 0.55, kind: br.kind || 'normal', hpShown: Math.ceil(br.hp), bh, slowShown: false, burnShown: false, armorShown: false, disposables };
     }
     _updateBrick(rec, br) {
         rec.obj.position.set(this.wx(br.x), 0, this.wz(br.y));
         const hp = Math.ceil(br.hp);
         const slowed = br.slowed > 0;
-        if (hp !== rec.hpShown || slowed !== rec.slowShown) {
-            rec.hpShown = hp; rec.slowShown = slowed;
+        const burning = br.burning > 0;
+        const armor = br.armorBreak > 0;
+        if (hp !== rec.hpShown || slowed !== rec.slowShown || burning !== rec.burnShown || armor !== rec.armorShown) {
+            rec.hpShown = hp; rec.slowShown = slowed; rec.burnShown = burning; rec.armorShown = armor;
             if (br.kind !== 'reward' && br.kind !== 'advanced') {
                 const col = slowed ? new THREE.Color('#9fe8ff') : this._brickColor(br);
                 rec.mesh.material.color.copy(col); rec.mesh.material.emissive.copy(col);
+            }
+            if (rec.crack) {
+                const nextVariant = br.crackVariant != null ? br.crackVariant : (br.uid % 4);
+                if (nextVariant !== rec.crackVariant) {
+                    rec.crackVariant = nextVariant;
+                    rec.crack.material.map = this._makeCrackTexture(nextVariant, rec.crackStrokeScale || 1);
+                    rec.crack.material.needsUpdate = true;
+                }
+                rec.crack.visible = armor;
             }
             rec.label.material.map = this._makeTextTexture(String(hp), '#ffffff');
             rec.label.material.needsUpdate = true;
@@ -391,9 +550,32 @@ class Renderer3D {
             rec.mesh.material.emissive.setHSL((h + 0.18) % 1, 0.9, 0.48);
         } else if (br.kind === 'advanced') {
             const pulse = 0.95 + Math.sin(this.game.frame * 0.08 + br.uid) * 0.16;
-            rec.mesh.material.color.set(slowed ? '#ffc76b' : '#ff8a22');
-            rec.mesh.material.emissive.set(slowed ? '#ffb24a' : '#ff6a00');
-            rec.mesh.material.emissiveIntensity = slowed ? 0.78 : pulse;
+            rec.mesh.material.color.set(slowed ? '#a6743a' : '#8c3f16');
+            rec.mesh.material.emissive.set(slowed ? '#3f6f7a' : '#4a1706');
+            rec.mesh.material.emissiveIntensity = slowed ? 0.52 : 0.35;
+            if (rec.lid) {
+                rec.lid.material.color.set(slowed ? '#c89a5a' : '#b45618');
+                rec.lid.material.emissive.set(slowed ? '#5fb8c8' : '#ff6a00');
+                rec.lid.material.emissiveIntensity = slowed ? 0.45 : 0.36 + pulse * 0.12;
+            }
+            if (rec.lock) rec.lock.material.emissiveIntensity = slowed ? 0.7 : 0.88 + pulse * 0.18;
+        }
+        if (rec.flames) {
+            const fallback = [{ x: -0.26, y: 0.84 }, { x: 0.2, y: 0.78 }, { x: 0.06, y: 1.0 }];
+            const offsets = br.flameOffsets || fallback;
+            const count = Math.max(0, Math.min(3, br.flameCount || 2));
+            rec.flames.forEach((fl, i) => {
+                fl.visible = burning && i < count;
+                if (burning) {
+                    const off = offsets[i] || fallback[i];
+                    fl.position.x = (off.x || 0) * rec.flameSpread;
+                    fl.position.y = rec.bh + this.ws(3 + (off.y || 0.8) * 14 + Math.sin(this.game.frame * 0.18 + br.uid + i) * 3);
+                    fl.material.color.set('#ff8a24');
+                    fl.material.opacity = 0.58 + 0.24 * Math.sin(this.game.frame * 0.22 + i);
+                    const s = this.ws(20 + 5 * Math.sin(this.game.frame * 0.17 + i));
+                    fl.scale.set(s * 0.72, s, 1);
+                }
+            });
         }
     }
     _syncBricks() {
@@ -457,10 +639,55 @@ class Renderer3D {
             const geo = new THREE.BoxGeometry(this.ws(f.r * 2), this.ws(6), this.ws(this.game.fieldBottom));
             const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(f.color), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
             obj = new THREE.Mesh(geo, mat); obj.position.set(this.wx(f.x), this.ws(8), 0); dispos = [geo, mat];
+        } else if (f.kind === 'chain') {
+            const sx = this.wx(f.x), sz = this.wz(f.y), ex = this.wx(f.x2), ez = this.wz(f.y2);
+            const midx = (sx + ex) / 2, midz = (sz + ez) / 2;
+            const dx = ex - sx, dz = ez - sz;
+            const side = new THREE.Vector3(-dz, 0, dx).normalize().multiplyScalar(this.ws(8));
+            obj = new THREE.Group();
+            const mats = [];
+            [-0.75, 0, 0.75].forEach((offset, i) => {
+                const jitter = side.clone().multiplyScalar(offset);
+                const pts = [
+                    new THREE.Vector3(sx + jitter.x * 0.2, this.ws(20 + i), sz + jitter.z * 0.2),
+                    new THREE.Vector3(midx + side.x * (1.15 - i * 0.28), this.ws(27 - i), midz + side.z * (1.15 - i * 0.28)),
+                    new THREE.Vector3(ex + jitter.x * 0.2, this.ws(20 + i), ez + jitter.z * 0.2)
+                ];
+                const curve = new THREE.CatmullRomCurve3(pts);
+                const geo = new THREE.TubeGeometry(curve, 8, this.ws(i === 1 ? 1.65 : 1.05), 6, false);
+                const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(i === 1 ? '#ffffff' : f.color), transparent: true, opacity: i === 1 ? 1 : 0.78, blending: THREE.AdditiveBlending, depthWrite: false });
+                obj.add(new THREE.Mesh(geo, mat));
+                dispos.push(geo, mat); mats.push(mat);
+            });
+            this.scene.add(obj);
+            return { obj, kind: f.kind, materials: mats, disposables: dispos };
+        } else if (f.kind === 'splash') {
+            obj = new THREE.Group();
+            const ringGeo = new THREE.RingGeometry(this.ws(f.r) * 0.84, this.ws(f.r), 36);
+            const coreGeo = new THREE.CircleGeometry(this.ws(f.r) * 0.9, 36);
+            const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(f.color), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+            const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(f.color), transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+            ringMat.userData.opacityMul = 1;
+            coreMat.userData.opacityMul = 1;
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            ring.rotation.x = -Math.PI / 2; core.rotation.x = -Math.PI / 2;
+            obj.add(ring); obj.add(core);
+            obj.position.set(this.wx(f.x), 0.2, this.wz(f.y));
+            dispos = [ringGeo, ringMat, coreGeo, coreMat];
+            this.scene.add(obj);
+            return { obj, kind: f.kind, materials: [ringMat, coreMat], disposables: dispos };
+        } else if (f.kind === 'flame') {
+            const geo = new THREE.ConeGeometry(this.ws(f.r) * 0.45, this.ws(f.r) * 1.15, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(f.color), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
+            obj = new THREE.Mesh(geo, mat); obj.position.set(this.wx(f.x), this.ws(18), this.wz(f.y)); dispos = [geo, mat];
+        } else if (f.kind === 'crack') {
+            const mat = new THREE.SpriteMaterial({ map: this._makeCrackTexture(f.variant || 0), color: new THREE.Color(f.color), transparent: true, opacity: 0.95, depthWrite: false });
+            obj = new THREE.Sprite(mat); obj.scale.set(this.ws(f.r) * 1.8, this.ws(f.r) * 1.8, 1); obj.position.set(this.wx(f.x), this.ws(36), this.wz(f.y)); dispos = [mat];
         } else {
-            // 地面环：splash / pop / slow / breach
-            const geo = new THREE.RingGeometry(this.ws(f.r) * 0.35, this.ws(f.r), 28);
-            const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(f.color), transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+            const solid = f.kind === 'slow' || f.kind === 'spark';
+            const geo = solid ? new THREE.CircleGeometry(this.ws(f.r), 28) : new THREE.RingGeometry(this.ws(f.r) * 0.35, this.ws(f.r), 28);
+            const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(f.color), transparent: true, opacity: solid ? 0.5 : 0.6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
             obj = new THREE.Mesh(geo, mat); obj.rotation.x = -Math.PI / 2; obj.position.set(this.wx(f.x), 0.2, this.wz(f.y)); dispos = [geo, mat];
         }
         this.scene.add(obj);
@@ -472,10 +699,11 @@ class Renderer3D {
             seen.add(f);
             let rec = this.fxMap.get(f);
             if (!rec) { rec = this._createFx(f); this.fxMap.set(f, rec); }
-            const baseOp = (f.kind === 'hblast' || f.kind === 'vblast') ? 0.7 : 0.6;
-            rec.obj.material.opacity = Math.max(0, f.alpha) * baseOp;
+            const baseOp = f.kind === 'splash' ? 0.92 : (f.kind === 'chain' ? 1.0 : (f.kind === 'flame' ? 0.72 : (f.kind === 'crack' ? 0.95 : (f.kind === 'slow' || f.kind === 'spark' ? 0.5 : ((f.kind === 'hblast' || f.kind === 'vblast') ? 0.7 : 0.6)))));
+            if (rec.materials) rec.materials.forEach(mat => { mat.opacity = Math.max(0, f.alpha) * baseOp * (mat.userData.opacityMul || 1); });
+            else if (rec.obj.material) rec.obj.material.opacity = Math.max(0, f.alpha) * baseOp;
             // pop 环扩大
-            if (f.kind === 'pop' || f.kind === 'breach') { const s = 1 + (1 - f.alpha) * 0.8; rec.obj.scale.set(s, s, s); }
+            if (f.kind === 'pop' || f.kind === 'breach' || f.kind === 'slow' || f.kind === 'spark' || f.kind === 'flame' || f.kind === 'crack') { const s = 1 + (1 - f.alpha) * 0.8; rec.obj.scale.set(s, s, s); }
         }
         for (const [f, rec] of this.fxMap) if (!seen.has(f)) { this._removeRec(rec); this.fxMap.delete(f); }
     }

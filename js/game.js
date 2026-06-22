@@ -74,17 +74,31 @@ class Game {
         this.lastBallLaunchFrame = -Infinity;
         this.splitTimer = 0;
         this.splitToastTimer = 0;
-        this.introSpecialQueue = ['advanced', 'reward'];
+        this.splitEverTriggered = false;
+        this.splitDurationBonusFrames = 0;
+        this.fireDurationUpgrades = 0;
+        this.chainLinkUpgrades = 0;
+        this.spikeDamageUpgrades = 0;
+        this.splitRewardIntroduced = false;
+        this.lastRewardSpawnFrame = -Infinity;
+        this.rewardSpawnCount = 0;
+        this.firstBoxHpUsed = false;
+        this.introSpecialQueue = ['advanced'];
         if (this.audio && this.audio.stopSplitFever) this.audio.stopSplitFever(false);
 
         this.addBall('normal');
         this.addBall('normal'); // 初始 2 颗（排队同角度连发，每击 -1 血）
         this.balls.forEach(ball => { ball.launchGap = this.initialBallLaunchGap; });
 
-        // 开局放 4 个 2 血的弱怪：消灭 3 个左右触发第一次升级（新手引导）
+        // 开局放 4 个 2 血的弱怪：错开位置，保留新手引导节奏
         const cw = this.cellW, hw = cw / 2, hh = cw / 2;
-        [0, 2, 3, 5].forEach(i => {
-            this.bricks.push({ uid: ++this.uid, x: cw * (i + 0.5), y: CONFIG.topWallY + hh, hw, hh, hp: 2, maxHp: 2, slowed: 0, exp: 2, speed: CONFIG.brick.speed });
+        [
+            { x: cw * 0.46, y: CONFIG.topWallY + hh + cw * 0.16 },
+            { x: cw * 2.50, y: CONFIG.topWallY + hh + cw * 0.72 },
+            { x: cw * 4.54, y: CONFIG.topWallY + hh + cw * 0.28 },
+            { x: cw * 5.50, y: CONFIG.topWallY + hh + cw * 0.96 }
+        ].forEach(p => {
+            this.bricks.push({ uid: ++this.uid, x: p.x, y: p.y, hw, hh, hp: 2, maxHp: 2, slowed: 0, exp: 2, speed: CONFIG.brick.speed });
         });
         this.updateSplitUi();
     }
@@ -191,6 +205,7 @@ class Game {
     // ---------------- 状态切换 ----------------
     startGame() {
         this.audio.resume();
+        this.audio.preloadSplitFever();
         if (this.audio.musicEnabled) this.audio.startMusic();
         this.audio.play('ui');
         document.getElementById('instruction-modal').style.display = 'none';
@@ -341,7 +356,8 @@ class Game {
     }
     triggerSplitTime() {
         const bc = CONFIG.brick;
-        this.splitTimer = bc.splitDurationFrames;
+        this.splitEverTriggered = true;
+        this.splitTimer = bc.splitDurationFrames + this.splitDurationBonusFrames;
         this.splitToastTimer = 90;
         this.balls.forEach(ball => { ball.splitDepth = 0; ball.splitCd = 0; });
         this.floatTexts.push({ x: this.W / 2, y: this.H * 0.34, str: this.text('splitToast'), c: '#ffe85a', s: 44, life: 80, maxLife: 80 });
@@ -362,11 +378,33 @@ class Game {
     openUpgrade(mode = 'normal') {
         this.state = 'UPGRADE';
         this.upgradeMode = mode;
-        const pool = (mode === 'advanced' ? CONFIG.advancedUpgradePool : CONFIG.upgradePool).slice();
+        const pool = this.getUpgradePool(mode);
         this.upgradeChoices = [];
-        for (let i = 0; i < 3 && pool.length; i++) this.upgradeChoices.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+        for (let i = 0; i < 3 && pool.length; i++) {
+            const total = pool.reduce((sum, item) => sum + item.weight, 0);
+            let pick = Math.random() * total;
+            let index = 0;
+            for (; index < pool.length - 1; index++) {
+                pick -= pool[index].weight;
+                if (pick <= 0) break;
+            }
+            this.upgradeChoices.push(pool.splice(index, 1)[0].id);
+        }
         this.renderUpgradeCards();
         document.getElementById('upgrade-modal').style.display = 'flex';
+    }
+    getUpgradePool(mode = 'normal') {
+        const ids = (mode === 'advanced' ? CONFIG.advancedUpgradePool : CONFIG.upgradePool).slice();
+        const pool = ids.map(id => ({ id, weight: 1 }));
+        const addOnce = (id, weight = 1) => { if (!pool.some(item => item.id === id)) pool.push({ id, weight }); };
+        if (mode === 'normal' && this.splitEverTriggered) addOnce('splitPlus');
+        if (mode === 'normal' && this.hasOwnedBallType('fire') && this.fireDurationUpgrades < 2) addOnce('fireDuration', 0.5);
+        if (mode === 'normal' && this.hasOwnedBallType('chain') && this.chainLinkUpgrades < 2) addOnce('chainLinks', 0.5);
+        if (mode === 'normal' && this.hasOwnedBallType('spike') && this.spikeDamageUpgrades < 2) addOnce('spikeDamage', 0.5);
+        return pool;
+    }
+    hasOwnedBallType(type) {
+        return this.balls.some(ball => !ball.splitClone && ball.type === type);
     }
     renderUpgradeCards() {
         const list = document.getElementById('cardList');
@@ -403,11 +441,53 @@ class Game {
             case 'addNormal': this.addBall('normal'); break;
             case 'power': this.power += 1; break;
             case 'speed': this.speed = Math.min(24, this.speed + 1.4); break;
+            case 'splitPlus':
+                this.splitDurationBonusFrames += 300;
+                if (this.splitTimer > 0) {
+                    this.splitTimer += 300;
+                    this.floatTexts.push({ x: this.W / 2, y: 96, str: '+5s', c: '#fff8b8', s: 22, life: 42, maxLife: 42 });
+                    this.updateSplitUi();
+                }
+                break;
+            case 'fireDuration':
+                this.fireDurationUpgrades = Math.min(2, this.fireDurationUpgrades + 1);
+                break;
+            case 'chainLinks':
+                this.chainLinkUpgrades = Math.min(2, this.chainLinkUpgrades + 1);
+                break;
+            case 'spikeDamage':
+                this.spikeDamageUpgrades = Math.min(2, this.spikeDamageUpgrades + 1);
+                break;
             case 'explode': this.addBall('explode'); break;
             case 'pierce': this.addBall('pierce'); break;
+            case 'slow': this.addBall('slow'); break;
+            case 'chain': this.addBall('chain'); break;
+            case 'fire': this.addBall('fire'); break;
+            case 'spike': this.addBall('spike'); break;
             case 'hblast': this.addBall('hblast'); break;
             case 'vblast': this.addBall('vblast'); break;
         }
+    }
+
+    damageBrick(br, amount) {
+        const mult = br.armorBreak > 0 ? 1.2 + this.spikeDamageUpgrades * 0.1 : 1;
+        br.hp -= amount * mult;
+    }
+
+    chainHit(source) {
+        const maxLinks = 3 + this.chainLinkUpgrades;
+        const targets = this.bricks
+            .filter(br => br !== source && br.hp > 0)
+            .sort((a, b) => Math.hypot(a.x - source.x, a.y - source.y) - Math.hypot(b.x - source.x, b.y - source.y))
+            .slice(0, maxLinks);
+        let from = source;
+        targets.forEach((br, i) => {
+            this.damageBrick(br, this.power * 0.85);
+            this.fx.push({ kind: 'chain', x: from.x, y: from.y, x2: br.x, y2: br.y, life: 18 + i * 3, maxLife: 20, alpha: 1, color: '#7cf7ff' });
+            this.fx.push({ kind: 'spark', x: br.x, y: br.y, r: 22, life: 16, maxLife: 16, alpha: 1, color: '#7cf7ff' });
+            from = br;
+        });
+        if (targets.length) this.audio.play('blast');
     }
 
     // ---------------- 砖块 ----------------
@@ -421,11 +501,32 @@ class Game {
     }
     shouldSpawnAdvancedBrick() {
         const b = CONFIG.brick;
-        const chance = Math.min(b.advancedChanceMax, b.advancedChance + Math.max(0, this.wave - 1) * b.advancedChancePerWave);
+        const raw = b.advancedChance + Math.max(0, this.wave - 2) * b.advancedChancePerWave;
+        const chance = Math.max(b.advancedChanceMin, Math.min(b.advancedChanceMax, raw));
         return this.wave >= 2 && Math.random() < chance;
     }
     shouldSpawnMegaRewardBrick() {
-        return Math.random() < CONFIG.brick.rewardWithMegaChance;
+        return this.canSpawnRewardBrick() && Math.random() < CONFIG.brick.rewardWithMegaChance;
+    }
+    canSpawnRewardBrick() {
+        return this.frame - this.lastRewardSpawnFrame >= this.getRewardCooldownFrames();
+    }
+    getRewardCooldownFrames() {
+        const b = CONFIG.brick;
+        if (this.rewardSpawnCount > 0 && this.rewardSpawnCount < b.rewardEarlyCooldownUntilCount) return b.rewardEarlyCooldownFrames;
+        return b.rewardCooldownFrames;
+    }
+    shouldSpawnRewardBrick() {
+        const b = CONFIG.brick;
+        if (!this.splitRewardIntroduced || !this.canSpawnRewardBrick()) return false;
+        const chance = Math.min(b.rewardChanceMax, b.rewardChance + Math.max(0, this.wave - 3) * b.rewardChancePerWave);
+        return Math.random() < chance;
+    }
+    trySpawnFirstRewardForHighBrick(isHighValue) {
+        if (!isHighValue || this.splitRewardIntroduced) return false;
+        if (!this.spawnSmallSpecialBrick('reward')) return false;
+        this.splitRewardIntroduced = true;
+        return true;
     }
     hasSpecialBrick() {
         return this.bricks.some(br => br.kind === 'advanced' || br.kind === 'reward');
@@ -437,13 +538,9 @@ class Game {
     }
     getAdvancedBrickHp() {
         const b = CONFIG.brick;
-        const fieldHigh = this.bricks.reduce((best, br) => {
-            if (br.kind === 'advanced' || br.kind === 'reward') return best;
-            return Math.max(best, br.maxHp || br.hp || 0);
-        }, 0);
-        const waveTarget = b.advancedHpBase + this.wave * b.advancedHpPerWave;
-        const fieldTarget = fieldHigh > 0 ? fieldHigh * 0.72 : 0;
-        return Math.max(12, Math.min(100, Math.round(Math.max(waveTarget, fieldTarget))));
+        const ownedBalls = Math.max(1, this.balls.filter(ball => !ball.splitClone).length);
+        const hp = ownedBalls * this.power * b.advancedHpPowerCoeff;
+        return Math.max(24, Math.round(hp));
     }
     spawnSmallSpecialBrick(kind) {
         if (this.hasSpecialBrick()) return false;
@@ -457,14 +554,18 @@ class Game {
         }
         if (!free.length) return false;
         const x = free[Math.floor(Math.random() * free.length)];
-        const split = kind === 'reward';
-        const hp = split
-            ? Math.max(3, Math.round(b.rewardHpBase + this.wave * b.rewardHpPerWave))
+        const hp = !this.firstBoxHpUsed
+            ? CONFIG.brick.firstBoxHp
             : this.getAdvancedBrickHp();
         this.bricks.push({
             uid: ++this.uid, x, y: yTop, hw, hh,
             hp, maxHp: hp, slowed: 0, exp: 0, speed: b.speed, kind
         });
+        this.firstBoxHpUsed = true;
+        if (kind === 'reward') {
+            this.lastRewardSpawnFrame = this.frame;
+            this.rewardSpawnCount++;
+        }
         return true;
     }
     spawnIntroSpecialBrick() {
@@ -488,19 +589,22 @@ class Game {
         if (!free.length) return;
         const x = free[Math.floor(Math.random() * free.length)];
         if (this.spawnIntroSpecialBrick()) return;
-        if (this.shouldSpawnAdvancedBrick()) { this.spawnSmallSpecialBrick('advanced'); return; }
+        if (this.shouldSpawnRewardBrick() && this.spawnSmallSpecialBrick('reward')) return;
+        if (this.shouldSpawnAdvancedBrick() && this.spawnSmallSpecialBrick('advanced')) return;
         // 血量按波数提升；小概率出老怪（血量特别大、移动缓慢）
         const low = b.hpLow + (this.wave - 1) * b.hpLowPerWave;
         let hp = Math.round(low + Math.random() * (b.hpSpread + this.wave * b.hpSpreadPerWave));
         let speed = b.speed;
         const r = Math.random();
-        if (this.wave >= 2 && r < b.bossChance) { hp = Math.round(hp * b.bossMul); speed = b.speed * b.bossSpeedMul; }
-        else if (r < b.bossChance + b.toughChance) { hp = Math.round(hp * b.toughMul); }
+        let highValue = false;
+        if (this.wave >= 2 && r < b.bossChance) { hp = Math.round(hp * b.bossMul); speed = b.speed * b.bossSpeedMul; highValue = true; }
+        else if (r < b.bossChance + b.toughChance) { hp = Math.round(hp * b.toughMul); highValue = true; }
         hp = Math.max(3, hp);
         this.bricks.push({
             uid: ++this.uid, x, y: yTop, hw, hh,
             hp, maxHp: hp, slowed: 0, exp: this.getBrickExp(hp), speed
         });
+        this.trySpawnFirstRewardForHighBrick(highValue || hp >= 60);
     }
 
     // 大型怪：占 2×2 格、超厚血、极慢
@@ -522,7 +626,7 @@ class Game {
                     uid: ++this.uid, x, y: yTop, hw, hh,
                     hp, maxHp: hp, slowed: 0, exp: this.getBrickExp(hp, true), speed: b.speed * b.megaSpeedMul
                 });
-                if (this.shouldSpawnMegaRewardBrick()) this.spawnSmallSpecialBrick('reward');
+                if (!this.trySpawnFirstRewardForHighBrick(true) && this.shouldSpawnMegaRewardBrick()) this.spawnSmallSpecialBrick('reward');
                 return true;
             }
         }
@@ -607,6 +711,11 @@ class Game {
         // 砖块下落（每块自己的速度；保留 slowed 状态用于兼容）
         for (const br of this.bricks) {
             if (br.slowed > 0) br.slowed--;
+            if (br.armorBreak > 0) br.armorBreak--;
+            if (br.burning > 0) {
+                br.burning--;
+                this.damageBrick(br, Math.max(1, br.maxHp || br.hp) * 0.01 / 60);
+            }
             br.y += (br.speed != null ? br.speed : bc.speed) * (br.slowed > 0 ? bc.slowFactor : 1);
         }
         // 防重叠
@@ -657,7 +766,7 @@ class Game {
         for (let i = this.bricks.length - 1; i >= 0; i--) {
             const br = this.bricks[i];
             if (br.hp <= 0) {
-                this.kills++;
+                this.kills += Math.max(1, Math.ceil(br.maxHp || br.hp || 1));
                 if (br.kind === 'reward') this.triggerSplitTime();
                 if (br.kind === 'advanced') {
                     this.pendingAdvancedUpgrades++;
@@ -687,7 +796,7 @@ class Game {
                 const ox = (br.hw + R) - Math.abs(ball.x - br.x), oy = (br.hh + R) - Math.abs(ball.y - br.y);
                 if (ox > 0 && oy > 0) {
                     if (!ball.hits[br.uid] || this.frame - ball.hits[br.uid] > 8) {
-                        ball.hits[br.uid] = this.frame; br.hp -= this.power; this.audio.play('impact');
+                        ball.hits[br.uid] = this.frame; this.damageBrick(br, this.power); this.audio.play('impact');
                         this.splitBall(ball);
                     }
                 }
@@ -706,24 +815,44 @@ class Game {
         }
         if (!best) return;
 
-        best.hp -= this.power;
+        this.damageBrick(best, this.power);
         ball.hitCd = 2;
         this.splitBall(ball);
 
         if (ball.type === 'explode') {
             const rad = 156;
             this.fx.push({ kind: 'splash', x: ball.x, y: ball.y, r: rad, life: 13, maxLife: 13, alpha: 1, color: '#ff7a2f' });
-            for (const br of this.bricks) if (br !== best && Math.hypot(br.x - ball.x, br.y - ball.y) < rad) br.hp -= this.power * 0.55;
+            for (const br of this.bricks) if (br !== best && Math.hypot(br.x - ball.x, br.y - ball.y) < rad) this.damageBrick(br, this.power * 0.55);
             this.audio.play('blast');
+        } else if (ball.type === 'slow') {
+            best.slowed = Math.max(best.slowed || 0, 240);
+            this.fx.push({ kind: 'slow', x: ball.x, y: ball.y, r: Math.max(36, best.hw * 1.3), life: 18, maxLife: 18, alpha: 1, color: '#8eeeff' });
+            this.audio.play('slow');
+        } else if (ball.type === 'chain') {
+            this.chainHit(best);
+        } else if (ball.type === 'fire') {
+            const burnDuration = 120 + this.fireDurationUpgrades * 60;
+            best.burning = Math.max(best.burning || 0, burnDuration);
+            best.flameCount = 2 + Math.floor(Math.random() * 2);
+            best.flameOffsets = Array.from({ length: best.flameCount }, () => ({
+                x: (Math.random() - 0.5) * 0.74,
+                y: 0.72 + Math.random() * 0.28
+            }));
+            this.fx.push({ kind: 'flame', x: best.x, y: best.y, r: 28, life: 24, maxLife: 24, alpha: 1, color: '#ff6a24' });
+            this.audio.play('blast');
+        } else if (ball.type === 'spike') {
+            if (!(best.armorBreak > 0)) best.crackVariant = Math.floor(Math.random() * 4);
+            best.armorBreak = Math.max(best.armorBreak || 0, 120);
+            this.audio.play('impact');
         } else if (ball.type === 'hblast') {
             const band = 26;
             this.fx.push({ kind: 'hblast', x: ball.x, y: ball.y, r: band, life: 14, maxLife: 14, alpha: 1, color: '#ff4d4d' });
-            for (const br of this.bricks) if (br !== best && Math.abs(br.y - ball.y) < band + br.hh) br.hp -= this.power * 0.85;
+            for (const br of this.bricks) if (br !== best && Math.abs(br.y - ball.y) < band + br.hh) this.damageBrick(br, this.power * 0.85);
             this.audio.play('blast');
         } else if (ball.type === 'vblast') {
             const band = 26;
             this.fx.push({ kind: 'vblast', x: ball.x, y: ball.y, r: band, life: 14, maxLife: 14, alpha: 1, color: '#ff4ecf' });
-            for (const br of this.bricks) if (br !== best && Math.abs(br.x - ball.x) < band + br.hw) br.hp -= this.power * 0.85;
+            for (const br of this.bricks) if (br !== best && Math.abs(br.x - ball.x) < band + br.hw) this.damageBrick(br, this.power * 0.85);
             this.audio.play('blast');
         } else {
             this.audio.play('impact');

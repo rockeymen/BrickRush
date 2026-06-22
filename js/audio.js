@@ -29,6 +29,10 @@ class AudioManager {
         this.feverEl = new Audio('assets/audio/pixel-peeker-polka-faster.mp3');
         this.feverEl.loop = true;
         this.feverEl.preload = 'auto';
+        try { this.feverEl.load(); } catch (e) {}
+        this.feverActive = false;
+        this.feverReady = false;
+        this.feverWarmStarted = false;
         this.splitMusicWasPlaying = false;
         this.musicFadeId = null;
         this.feverFadeId = null;
@@ -82,6 +86,33 @@ class AudioManager {
     outputGain() { return this.volume * 2.2; }
     musicLevel() { return Math.min(1, this.volume * 0.9); }
     feverLevel() { return Math.min(1, this.volume * 1.05); }
+
+    preloadSplitFever() {
+        if (!this.feverEl || this.feverReady || this.feverWarmStarted) return;
+        this.resume();
+        this.feverWarmStarted = true;
+        const oldMuted = this.feverEl.muted;
+        const oldVolume = this.feverEl.volume;
+        this.feverEl.muted = true;
+        this.feverEl.volume = 0;
+        try { this.feverEl.currentTime = 0; } catch (e) {}
+        const ready = () => {
+            this.feverReady = true;
+            if (this.feverActive) return;
+            this.feverEl.pause();
+            try { this.feverEl.currentTime = 0; } catch (e) {}
+            this.feverEl.muted = oldMuted;
+            this.feverEl.volume = this.musicEnabled ? this.feverLevel() : oldVolume;
+        };
+        const failed = () => {
+            this.feverWarmStarted = false;
+            this.feverEl.muted = oldMuted;
+            this.feverEl.volume = oldVolume;
+        };
+        const p = this.feverEl.play();
+        if (p && p.then) p.then(ready).catch(failed);
+        else ready();
+    }
 
     cancelFade(kind) {
         const key = kind + 'FadeId';
@@ -170,6 +201,8 @@ class AudioManager {
         this.cancelFade('fever');
         this.splitMusicWasPlaying = !this.musicEl.paused;
         this.musicEl.pause();
+        this.feverActive = true;
+        this.feverEl.muted = false;
         this.feverEl.volume = this.feverLevel();
         this.feverEl.currentTime = 0;
         this.feverEl.play().catch(() => {});
@@ -177,6 +210,7 @@ class AudioManager {
 
     stopSplitFever(resumeMusic = true) {
         if (!this.feverEl) return;
+        this.feverActive = false;
         this.cancelFade('fever');
         this.cancelFade('music');
         const shouldResumeMusic = resumeMusic && this.musicEnabled && this.splitMusicWasPlaying;

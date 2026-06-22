@@ -22,15 +22,22 @@ const CONFIG = {
     // 砖块（大小=格子，按列对齐下落，带数字，不重叠）
     brick: {
         speed: 0.336,           // 普通砖统一下落速度（原 0.48 的 70%）
-        slowFactor: 0.5,        // 预留：砖块被减速状态影响时的速度倍率
+        slowFactor: 0.7,        // 砖块被减速状态影响时的速度倍率
         rewardHpBase: 4,
         rewardHpPerWave: 1.6,
-        rewardWithMegaChance: 0.5,
-        advancedChance: 0.24,
-        advancedChancePerWave: 0.008,
-        advancedChanceMax: 0.36,
-        advancedHpBase: 12,
-        advancedHpPerWave: 5,
+        rewardWithMegaChance: 0.05,
+        rewardChance: 0.05,
+        rewardChancePerWave: 0,
+        rewardChanceMax: 0.05,
+        rewardEarlyCooldownFrames: 5400, // 第 2/3/4 次分裂箱子间隔约 1.5 分钟
+        rewardEarlyCooldownUntilCount: 4,
+        rewardCooldownFrames: 7200, // 首次之后，分裂箱子至少间隔约 2 分钟游戏时间
+        advancedChance: 0.12,
+        advancedChancePerWave: -0.004,
+        advancedChanceMin: 0.04,
+        advancedChanceMax: 0.14,
+        firstBoxHp: 50,
+        advancedHpPowerCoeff: 10,
         splitDurationFrames: 600,
         splitMaxDepth: 2,
         spawnIntervalBase: 168, // 密度减半（生成间隔翻倍）
@@ -47,6 +54,10 @@ const CONFIG = {
         normal: '#ffd54a',
         pierce: '#b56bff',
         explode: '#ff7a2f',
+        slow: '#8eeeff',
+        chain: '#7cf7ff',
+        fire: '#ff5a24',
+        spike: '#e6eef7',
         hblast: '#ff4d4d',
         vblast: '#ff4ecf',
         return: '#5a5a6a'
@@ -54,7 +65,7 @@ const CONFIG = {
 
     // 升级池（id 与 I18N.upgrades 对应；icon 决定卡片缩略图画法）
     upgradePool: ['addNormal', 'power', 'speed'],
-    advancedUpgradePool: ['explode', 'pierce', 'hblast', 'vblast'],
+    advancedUpgradePool: ['explode', 'pierce', 'slow', 'chain', 'fire', 'spike', 'hblast', 'vblast'],
     maxBalls: 40
 };
 
@@ -64,7 +75,7 @@ const I18N = {
         title: 'Brick Rush',
         wave: '波数',
         level: '等级',
-        kills: '击杀',
+        kills: '击杀分数',
         hp: '基地',
         splitTime: '分裂时间',
         splitToast: '分裂时间!',
@@ -83,15 +94,23 @@ const I18N = {
         instructionsTitle: '操作说明',
         instructionsCopy: '点击或拖动屏幕调整发射方向，弹球自动连发并反弹。击碎砖块获得经验，普通升级强化基础属性；击碎特殊砖块可获得高级弹球或进入分裂时间。别让砖块越过红线！',
         start: '开始游戏',
-        gameover: '防线告破', finalScore: '坚守到第 {wave} 波 · 击杀 {kills}',
+        gameover: '防线告破', finalScore: '坚守到第 {wave} 波 · 击杀分数 {kills}',
         upgradeTitle: '选择强化',
         advancedUpgradeTitle: '选择高级弹球',
         upgrades: {
             addNormal: { name: '增加弹球', desc: '+1 颗普通弹球' },
             power: { name: '攻击强化', desc: '所有弹球攻击力 +1' },
             speed: { name: '球速强化', desc: '所有弹球速度提升' },
+            splitPlus: { name: '分裂延长', desc: '分裂时间 +5 秒' },
+            fireDuration: { name: '余焰延长', desc: '燃烧状态持续时间 +1 秒' },
+            chainLinks: { name: '雷链扩展', desc: '雷链攻击目标数量 +1' },
+            spikeDamage: { name: '破甲加深', desc: '破甲后受到伤害额外 +10%' },
             explode: { name: '爆炸弹球', desc: '+1 颗爆炸弹，命中产生范围爆炸' },
             pierce: { name: '穿刺弹球', desc: '+1 颗穿刺弹，穿透怪物不反弹' },
+            slow: { name: '冰冻弹球', desc: '+1 颗减速弹，命中后砖块速度降为 70%' },
+            chain: { name: '雷链弹球', desc: '+1 颗雷链球，命中后电击附近 3 个砖块' },
+            fire: { name: '火焰弹球', desc: '+1 颗火焰球，命中后燃烧 2 秒，每秒 1%' },
+            spike: { name: '尖刺弹球', desc: '+1 颗尖刺球，命中后破甲 2 秒' },
             hblast: { name: '横向爆破弹', desc: '+1 颗，命中引发横向冲击波' },
             vblast: { name: '纵向爆破弹', desc: '+1 颗，命中引发纵向冲击波' }
         }
@@ -101,7 +120,7 @@ const I18N = {
         title: 'Brick Rush',
         wave: 'Wave',
         level: 'Lv',
-        kills: 'Kills',
+        kills: 'Score',
         hp: 'Base',
         splitTime: 'Split Time',
         splitToast: 'Split Time!',
@@ -120,15 +139,23 @@ const I18N = {
         instructionsTitle: 'How to Play',
         instructionsCopy: 'Tap or drag to aim. Balls auto-fire and bounce. Break blocks for EXP and basic upgrades. Break special blocks to gain special balls or enter Split Time. Don\'t let blocks cross the red line!',
         start: 'Start',
-        gameover: 'Line Breached', finalScore: 'Held to wave {wave} · {kills} kills',
+        gameover: 'Line Breached', finalScore: 'Held to wave {wave} · Score {kills}',
         upgradeTitle: 'Choose an Upgrade',
         advancedUpgradeTitle: 'Choose a Special Ball',
         upgrades: {
             addNormal: { name: 'Extra Ball', desc: '+1 normal ball' },
             power: { name: 'Power Up', desc: 'All balls +1 damage' },
             speed: { name: 'Speed Up', desc: 'All balls move faster' },
+            splitPlus: { name: 'Longer Split', desc: 'Split Time +5 sec' },
+            fireDuration: { name: 'Longer Burn', desc: 'Burn lasts +1 sec' },
+            chainLinks: { name: 'Longer Chain', desc: 'Chain hits +1 target' },
+            spikeDamage: { name: 'Deeper Crack', desc: 'Armor break damage +10%' },
             explode: { name: 'Explosive Ball', desc: '+1 ball that blasts an area on hit' },
             pierce: { name: 'Pierce Ball', desc: '+1 ball that pierces through' },
+            slow: { name: 'Ice Ball', desc: '+1 slow ball, hits slow bricks to 70% speed' },
+            chain: { name: 'Chain Ball', desc: '+1 chain ball, shocks 3 nearby bricks on hit' },
+            fire: { name: 'Fire Ball', desc: '+1 fire ball, burns 2 sec for 1%/sec' },
+            spike: { name: 'Spike Ball', desc: '+1 spike ball, cracks armor for 2 sec' },
             hblast: { name: 'H-Blast Ball', desc: '+1 ball, horizontal shockwave' },
             vblast: { name: 'V-Blast Ball', desc: '+1 ball, vertical shockwave' }
         }
